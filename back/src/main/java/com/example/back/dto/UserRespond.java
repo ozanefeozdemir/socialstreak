@@ -1,5 +1,14 @@
 package com.example.back.dto;
 
-public record UserRespondDTO() {
+import org.hibernate.annotations.CreationTimestamp;
+
+import java.util.UUID;
+
+public record UserRespond(
+        UUID id,
+        String email,
+        String username,
+        String timezone
+) {
 
 }
