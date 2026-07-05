@@ -1,4 +1,4 @@
 package com.example.back.model;
 
-public record habbit() {
+public class user {
 }
