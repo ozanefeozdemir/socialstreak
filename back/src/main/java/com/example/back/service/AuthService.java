@@ -3,6 +3,7 @@ package com.example.back.service;
 import com.example.back.dto.AuthRespond;
 import com.example.back.dto.LoginRequest;
 import com.example.back.dto.RegisterRequest;
+import com.example.back.exception.UserAlreadyExistsException;
 import com.example.back.model.User;
 import com.example.back.repository.UserRepository;
 import com.example.back.security.JwtService;
@@ -40,7 +41,7 @@ public class AuthService {
     public AuthRespond register(RegisterRequest request){
 
         if(userRepository.existsByEmail(request.email()) || userRepository.existsByUsername(request.username())){
-            throw new RuntimeException("User Already Exists.");
+            throw new UserAlreadyExistsException("User Already Exists.");
         }
 
         User user = new User();

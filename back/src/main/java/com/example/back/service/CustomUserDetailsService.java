@@ -2,6 +2,7 @@ package com.example.back.service;
 
 import com.example.back.model.User;
 import com.example.back.repository.UserRepository;
+import com.example.back.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -19,10 +20,5 @@ public class CustomUserDetailsService implements UserDetailsService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
 
-        return org.springframework.security.core.userdetails.User.builder()
-                .username(user.getEmail())
-                .password(user.getPasswordHash())
-                .authorities("USER").build();
-
-    }
-}
+        return new UserPrincipal(user);
+    }}
