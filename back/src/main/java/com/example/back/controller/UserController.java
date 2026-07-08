@@ -32,18 +32,19 @@ public class UserController {
     @PreAuthorize("#id == principal.id")
     @GetMapping("/{id}")
     public ResponseEntity<UserRespond> getUserById(@PathVariable UUID id){
-        return ResponseEntity.ok(userMapper.userToUserRespond(userService.findUserById(id)));
+        return ResponseEntity.ok(userMapper.entityToRespond(userService.findUserById(id)));
     }
 
     @GetMapping
     public ResponseEntity<List<UserRespond>> getAllUsers(){
-        return ResponseEntity.ok(userMapper.usersToUserResponds(userService.findAllUsers()));
+        return ResponseEntity.ok(userMapper.entitiesToResponds(userService.findAllUsers()));
     }
 
     @PreAuthorize("#id == principal.id")
     @PutMapping("/{id}")
-    public ResponseEntity<UserRespond> updateUser(@PathVariable UUID id, @RequestBody UpdateUserRequest updateUserRequest){
-        return ResponseEntity.ok(userMapper.userToUserRespond(userService.updateUser(updateUserRequest, id)));
+    public ResponseEntity<UserRespond> updateUser(@PathVariable UUID id, @Valid @RequestBody UpdateUserRequest updateUserRequest){
+        userMapper.entityToRespond(userService.updateUser(updateUserRequest, id));
+        return ResponseEntity.noContent().build();
     }
 
     @PreAuthorize("#id == principal.id")
