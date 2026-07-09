@@ -9,12 +9,14 @@ import com.example.back.model.Habit;
 import com.example.back.model.User;
 import com.example.back.repository.HabitRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class HabitService {
@@ -40,7 +42,6 @@ public class HabitService {
         User user = userService.findUserById(userId);
         Habit habit = habitMapper.requestToEntity(habitRequest);
         habit.setUser(user);
-
         return habitMapper.entityToRespond(habitRepository.save(habit));
     }
 
@@ -75,7 +76,7 @@ public class HabitService {
     }
 
     @Transactional
-    private Habit verifyOwnership(UUID habitId, UUID userId) {
+    public Habit verifyOwnership(UUID habitId, UUID userId) {
         //  Cheks existence of habit and associations with user.
         Habit habit = habitRepository.findById(habitId)
                 .orElseThrow(() -> new ResourceNotFoundException("Habit does not exist."));

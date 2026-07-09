@@ -2,11 +2,8 @@ package com.example.back.controller;
 
 import com.example.back.dto.HabitRequest;
 import com.example.back.dto.HabitRespond;
-import com.example.back.mapper.HabitMapper;
-import com.example.back.model.Habit;
 import com.example.back.security.UserPrincipal;
 import com.example.back.service.HabitService;
-import com.example.back.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -59,5 +56,5 @@ public class HabitController {
     public ResponseEntity<Void> delete(@PathVariable UUID id,  @AuthenticationPrincipal UserPrincipal userPrincipal){
         habitService.delete(id, userPrincipal.getId());
         return ResponseEntity.noContent().build();
-    }   
+    }
 }

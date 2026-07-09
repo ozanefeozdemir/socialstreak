@@ -78,6 +78,11 @@ public class GlobalExceptionHandler {
     return build(HttpStatus.FORBIDDEN, "Forbidden", ex.getMessage(), null);
   }
 
+  @ExceptionHandler(DuplicateCheckInException.class)
+  public ResponseEntity<ErrorResponse> handleDuplicateCheckInException(DuplicateCheckInException ex) {
+    return build(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), null);
+  }
+
   // ---- Security ----
 
   @ExceptionHandler(BadCredentialsException.class)
