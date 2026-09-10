@@ -1,7 +1,6 @@
 package com.example.back.model;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.Email;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
@@ -29,6 +28,12 @@ public class User {
 
     @Column(nullable = false)
     private String passwordHash;
+
+    @Column(nullable = false)
+    private String name;
+
+    @Column(nullable = false)
+    private String surname;
 
     private String timezone;
 

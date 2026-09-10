@@ -3,7 +3,6 @@ package com.example.back.controller;
 import com.example.back.dto.CheckInRespond;
 import com.example.back.security.UserPrincipal;
 import com.example.back.service.CheckInService;
-import com.example.back.service.HabitService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -33,6 +32,7 @@ public class CheckInController {
     public ResponseEntity<Void> deleteCheckIn(@PathVariable UUID checkInId, @AuthenticationPrincipal UserPrincipal userPrincipal,@PathVariable UUID habitId){
         checkInService.delete(habitId, userPrincipal.getId(), checkInId);
         return ResponseEntity.noContent().build();
+
     }
 }
 

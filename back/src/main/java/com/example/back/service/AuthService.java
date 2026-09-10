@@ -49,6 +49,8 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setUsername(request.username());
         user.setTimezone(request.timezone());
+        user.setName(request.name());
+        user.setSurname(request.surname());
 
         userRepository.save(user);
 

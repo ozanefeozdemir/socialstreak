@@ -8,6 +8,8 @@ public record UserRespond(
         UUID id,
         String email,
         String username,
+        String name,
+        String surname,
         String timezone
 ) {
 
