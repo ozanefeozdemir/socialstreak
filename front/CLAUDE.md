@@ -277,7 +277,7 @@ front/
 
 1. **Backend runs on port 8080** — Frontend Axios base URL should be `http://localhost:8080/api` for development
 2. **For physical device testing**, replace `localhost` with your machine's local IP
-3. **JWT stored in expo-secure-store** — retrieve on app launch, attach via Axios interceptor
+3. **JWT & User Profile stored in expo-secure-store (web: localStorage)** — retrieved on app launch, current user profile accessible via `useAuth().user`
 4. **All IDs are UUIDs** — use `string` type in TypeScript
 5. **Dates**: `createdAt` fields are ISO 8601 Instant strings, `checkInDate` is `YYYY-MM-DD` (LocalDate)
 6. **Timezone-aware check-ins**: Backend uses user's timezone to determine "today"
@@ -306,15 +306,43 @@ front/
 | Tab | Route File | Description |
 |-----|-----------|-------------|
 | 1. Feed | `(tabs)/feed.tsx` | Social feed of friends' check-in activity |
-| 2. Discover | `(tabs)/discover.tsx` | Search users, find friends |
+| 2. Discover | `(tabs)/discover.tsx` | Segmented switcher: Find Friends (search users) & Requests (received/sent) |
 | 3. **Habits** (center) | `(tabs)/index.tsx` | User's habit list + "New Habit" button — the hero tab |
-| 4. Profile | `(tabs)/profile.tsx` | User stats, streaks overview |
+| 4. Profile | `(tabs)/profile.tsx` | User stats & streaks. Tapping Friends stat opens Friend List |
 | 5. Settings | `(tabs)/settings.tsx` | Account management, logout |
 
 **Routing Groups**:
 - `(auth)/` — Login, Register (no tab bar)
 - `(tabs)/` — Main app (tab bar visible)
 - `habit/` — Habit detail `[id].tsx`, create `create.tsx` (stack screens)
+
+---
+
+## Discover & Friends System
+
+### Discover Page Layout (Segmented Switcher)
+The Discover screen uses a top segmented pill switcher with two primary views:
+
+1. **Find Friends Tab**:
+   - Live search bar filtering by `@username` or name (`GET /api/user`).
+   - Dynamic user search result items reflecting relationship state:
+     - **Not Connected**: "+ Add Friend" button (`POST /api/friendreq/send/{id}`).
+     - **Request Sent**: "Requested" indicator with cancel option (`DELETE /api/friendreq/{reqId}`).
+     - **Request Received**: "Accept" / "Decline" quick actions.
+     - **Already Friends**: "Friends ✓" badge.
+     - **Self**: Hidden from search results.
+   - Clean empty state when no query is typed (future home for trending habits/recommendations).
+
+2. **Requests Tab**:
+   - Badge counter on tab indicating pending received requests (e.g. `Requests (2)`).
+   - **Received Requests Section**: Incoming invites with user avatar, name, and action buttons (`Accept` / `Decline`).
+   - **Sent Requests Section**: Outgoing pending requests with `Cancel` button.
+
+### Friend List in Profile
+- `profile.tsx` displays user stats: **Day Streak**, **Check-ins**, **Habits**, and **Friends** count.
+- Tapping the **Friends** stat card opens the user's friend list (modal or sub-view):
+  - Lists all current friends (`GET /api/friendship`).
+  - Displays avatar, name, `@username`, and an option to remove friendship (`DELETE /api/friendship/{friendId}`).
 
 ---
 
@@ -354,6 +382,7 @@ When a user checks in a habit, it appears in their friends' Feed tab. Feed items
 
 ## Future Work (Deferred)
 
+- Most common & trending habits list in Discover tab (habit suggestions/templates)
 - `isPublic` boolean column on `habits` table (public/private toggle per habit)
 - Token refresh mechanism (current JWT is 1h, persistent login needs longer sessions or refresh tokens)
 - Push notifications (daily reminders, friend activity)
@@ -376,21 +405,28 @@ front/
 │   ├── (tabs)/
 │   │   ├── _layout.tsx           → 5-tab navigator
 │   │   ├── feed.tsx              → Friends' activity feed
-│   │   ├── discover.tsx          → Search/add friends
+│   │   ├── discover.tsx          → Search/add friends & manage requests (Segmented)
 │   │   ├── index.tsx             → Habits list (center tab)
-│   │   ├── profile.tsx           → User profile & stats
+│   │   ├── profile.tsx           → User profile & stats (with Friend list trigger)
 │   │   └── settings.tsx          → Account settings
 │   └── habit/
 │       ├── [id].tsx              → Habit detail + history
 │       └── create.tsx            → Create new habit
 ├── api/                          → HTTP layer (DONE ✅)
 ├── types/                        → TypeScript interfaces (DONE ✅)
-├── hooks/                        → React Query hooks
+├── hooks/                        → React Query hooks (DONE ✅)
+│   ├── useAuth.ts
+│   ├── useHabits.ts
+│   ├── useCheckIns.ts
+│   ├── useFeed.ts
+│   ├── useFriends.ts
+│   ├── useFriendRequests.ts
+│   └── useUsers.ts
 ├── components/
 │   ├── ui/                       → Design system (Button, Input, Card)
 │   ├── habit/                    → HabitCard, HabitList, StreakCounter
 │   ├── feed/                     → FeedItem
-│   ├── friend/                   → FriendCard, UserSearchResult
+│   ├── friend/                   → FriendCard, UserSearchResult, FriendRequestCard (DONE ✅)
 │   └── common/                   → LoadingScreen, EmptyState, ErrorBoundary
 ├── contexts/
 │   ├── AuthContext.tsx            → Auth state (token, user, isLoggedIn)

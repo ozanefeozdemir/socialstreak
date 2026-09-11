@@ -1,9 +1,16 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import * as SecureStore from 'expo-secure-store';
-import { Platform } from 'react-native';
-import type { AuthRespond, UserRespond } from '@/types';
-
-const TOKEN_KEY = 'auth_token';
+import {
+  getToken,
+  saveToken,
+  clearToken,
+  getStoredUser,
+  saveStoredUser,
+  clearStoredUser,
+} from '@/api/client';
+import { authApi } from '@/api/endpoints/auth';
+import { usersApi } from '@/api/endpoints/users';
+import { queryClient } from '@/contexts/QueryProvider';
+import type { UserRespond, LoginRequest, RegisterRequest } from '@/types';
 
 interface AuthState {
   token: string | null;
@@ -13,35 +20,13 @@ interface AuthState {
 }
 
 interface AuthContextType extends AuthState {
-  login: (authResponse: AuthRespond) => Promise<void>;
+  login: (data: LoginRequest) => Promise<void>;
+  register: (data: RegisterRequest) => Promise<void>;
   logout: () => Promise<void>;
   setUser: (user: UserRespond) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-async function getStoredToken(): Promise<string | null> {
-  if (Platform.OS === 'web') {
-    return localStorage.getItem(TOKEN_KEY);
-  }
-  return SecureStore.getItemAsync(TOKEN_KEY);
-}
-
-async function storeToken(token: string): Promise<void> {
-  if (Platform.OS === 'web') {
-    localStorage.setItem(TOKEN_KEY, token);
-    return;
-  }
-  await SecureStore.setItemAsync(TOKEN_KEY, token);
-}
-
-async function removeToken(): Promise<void> {
-  if (Platform.OS === 'web') {
-    localStorage.removeItem(TOKEN_KEY);
-    return;
-  }
-  await SecureStore.deleteItemAsync(TOKEN_KEY);
-}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<AuthState>({
@@ -51,30 +36,83 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isLoading: true,
   });
 
-  // Load stored token on app launch
+  // Load stored token and user profile on app launch
   useEffect(() => {
     (async () => {
-      const token = await getStoredToken();
-      setState((prev) => ({
-        ...prev,
-        token,
-        isLoggedIn: !!token,
-        isLoading: false,
-      }));
+      try {
+        const [token, storedUser] = await Promise.all([getToken(), getStoredUser()]);
+        setState({
+          token,
+          user: storedUser,
+          isLoggedIn: !!token,
+          isLoading: false,
+        });
+      } catch {
+        setState((prev) => ({ ...prev, isLoading: false }));
+      }
     })();
   }, []);
 
-  const login = useCallback(async (authResponse: AuthRespond) => {
-    await storeToken(authResponse.token);
-    setState((prev) => ({
-      ...prev,
-      token: authResponse.token,
+  const login = useCallback(async (data: LoginRequest) => {
+    // Clear any previous user's cached queries immediately
+    queryClient.clear();
+    const response = await authApi.login(data);
+    await saveToken(response.token);
+
+    // Fetch full user profile matching username
+    let loggedInUser: UserRespond | null = null;
+    try {
+      const users = await usersApi.getAll();
+      loggedInUser =
+        users.find((u) => u.username.toLowerCase() === response.username.toLowerCase()) || null;
+    } catch {
+      // Ignore if offline/error
+    }
+
+    if (loggedInUser) {
+      await saveStoredUser(loggedInUser);
+    }
+
+    setState({
+      token: response.token,
+      user: loggedInUser,
       isLoggedIn: true,
-    }));
+      isLoading: false,
+    });
+  }, []);
+
+  const register = useCallback(async (data: RegisterRequest) => {
+    // Clear any previous user's cached queries immediately
+    queryClient.clear();
+    const response = await authApi.register(data);
+    await saveToken(response.token);
+
+    // Fetch full user profile matching registered username
+    let registeredUser: UserRespond | null = null;
+    try {
+      const users = await usersApi.getAll();
+      registeredUser =
+        users.find((u) => u.username.toLowerCase() === response.username.toLowerCase()) || null;
+    } catch {
+      // Ignore if offline/error
+    }
+
+    if (registeredUser) {
+      await saveStoredUser(registeredUser);
+    }
+
+    setState({
+      token: response.token,
+      user: registeredUser,
+      isLoggedIn: true,
+      isLoading: false,
+    });
   }, []);
 
   const logout = useCallback(async () => {
-    await removeToken();
+    await Promise.all([clearToken(), clearStoredUser()]);
+    // Wipe all cached queries (habits, check-ins, user data) from memory
+    queryClient.clear();
     setState({
       token: null,
       user: null,
@@ -84,11 +122,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const setUser = useCallback((user: UserRespond) => {
+    saveStoredUser(user);
     setState((prev) => ({ ...prev, user }));
   }, []);
 
   return (
-    <AuthContext.Provider value={{ ...state, login, logout, setUser }}>
+    <AuthContext.Provider value={{ ...state, login, register, logout, setUser }}>
       {children}
     </AuthContext.Provider>
   );
@@ -101,3 +140,4 @@ export function useAuth(): AuthContextType {
   }
   return context;
 }
+

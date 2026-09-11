@@ -2,7 +2,10 @@ import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
+import type { UserRespond } from '@/types';
+
 const TOKEN_KEY = 'auth_token';
+const USER_KEY = 'auth_user';
 
 const getBaseUrl = (): string => {
   if (__DEV__) {
@@ -27,6 +30,7 @@ const apiClient = axios.create({
 // ── Token helpers ───────────────────────────────────
 // Platform kontrolü eklenerek Web (localStorage) ve Mobil (SecureStore) ayrımı yapıldı
 export const saveToken = async (token: string): Promise<void> => {
+  apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
   if (Platform.OS === 'web') {
     localStorage.setItem(TOKEN_KEY, token);
   } else {
@@ -42,6 +46,7 @@ export const getToken = async (): Promise<string | null> => {
 };
 
 export const clearToken = async (): Promise<void> => {
+  delete apiClient.defaults.headers.common['Authorization'];
   if (Platform.OS === 'web') {
     localStorage.removeItem(TOKEN_KEY);
   } else {
@@ -49,13 +54,44 @@ export const clearToken = async (): Promise<void> => {
   }
 };
 
+// ── User helpers ─────────────────────────────────────
+export const saveStoredUser = async (user: UserRespond): Promise<void> => {
+  const json = JSON.stringify(user);
+  if (Platform.OS === 'web') {
+    localStorage.setItem(USER_KEY, json);
+  } else {
+    await SecureStore.setItemAsync(USER_KEY, json);
+  }
+};
+
+export const getStoredUser = async (): Promise<UserRespond | null> => {
+  try {
+    const json =
+      Platform.OS === 'web'
+        ? localStorage.getItem(USER_KEY)
+        : await SecureStore.getItemAsync(USER_KEY);
+    return json ? (JSON.parse(json) as UserRespond) : null;
+  } catch {
+    return null;
+  }
+};
+
+export const clearStoredUser = async (): Promise<void> => {
+  if (Platform.OS === 'web') {
+    localStorage.removeItem(USER_KEY);
+  } else {
+    await SecureStore.deleteItemAsync(USER_KEY);
+  }
+};
+
 // ── Request Interceptor: Attach JWT ─────────────────
 apiClient.interceptors.request.use(
   async (config) => {
-    // Doğrudan SecureStore çağırmak yerine yazdığımız helper'ı kullanıyoruz
     const token = await getToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    } else {
+      delete config.headers.Authorization;
     }
     return config;
   },

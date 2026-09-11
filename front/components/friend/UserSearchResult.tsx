@@ -1,16 +1,242 @@
-// TODO: Implement UserSearchResult component
-// Shows: user avatar, username, name, "Add Friend" button
+import React from 'react';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import type { UserRespond } from '@/types';
 
-import { View, Text, StyleSheet } from 'react-native';
+export type UserRelationStatus = 'none' | 'sent' | 'received' | 'friend';
 
-export function UserSearchResult() {
+interface UserSearchResultProps {
+  user: UserRespond;
+  status: UserRelationStatus;
+  sentRequestId?: string;
+  receivedRequestId?: string;
+  onSendRequest?: (userId: string) => void;
+  onCancelRequest?: (requestId: string) => void;
+  onAcceptRequest?: (requestId: string) => void;
+  onDeclineRequest?: (requestId: string) => void;
+  isLoading?: boolean;
+}
+
+export function UserSearchResult({
+  user,
+  status,
+  sentRequestId,
+  receivedRequestId,
+  onSendRequest,
+  onCancelRequest,
+  onAcceptRequest,
+  onDeclineRequest,
+  isLoading = false,
+}: UserSearchResultProps) {
+  const initials = `${(user.name?.[0] || '').toUpperCase()}${(user.surname?.[0] || '').toUpperCase()}` || (user.username?.[0] || '?').toUpperCase();
+  const fullName = [user.name, user.surname].filter(Boolean).join(' ') || user.username;
+
   return (
-    <View style={styles.container}>
-      <Text>UserSearchResult</Text>
+    <View style={styles.card}>
+      <View style={styles.avatar}>
+        <Text style={styles.avatarText}>{initials}</Text>
+      </View>
+
+      <View style={styles.userInfo}>
+        <Text style={styles.fullName} numberOfLines={1}>
+          {fullName}
+        </Text>
+        <Text style={styles.username} numberOfLines={1}>
+          @{user.username}
+        </Text>
+      </View>
+
+      <View style={styles.actionContainer}>
+        {isLoading ? (
+          <ActivityIndicator size="small" color="#6C5CE7" />
+        ) : status === 'none' ? (
+          <Pressable
+            style={({ pressed }) => [styles.addButton, pressed && styles.btnPressed]}
+            onPress={() => onSendRequest?.(user.id)}
+          >
+            <Ionicons name="person-add" size={14} color="#FFFFFF" />
+            <Text style={styles.addButtonText}>Add</Text>
+          </Pressable>
+        ) : status === 'sent' ? (
+          <Pressable
+            style={({ pressed }) => [styles.sentBadge, pressed && styles.btnPressed]}
+            onPress={() => {
+              if (sentRequestId && onCancelRequest) {
+                onCancelRequest(sentRequestId);
+              }
+            }}
+          >
+            <Ionicons name="time-outline" size={13} color="#E17055" />
+            <Text style={styles.sentBadgeText}>Requested</Text>
+            <Ionicons name="close-circle" size={14} color="#E17055" />
+          </Pressable>
+        ) : status === 'received' ? (
+          <View style={styles.receivedActions}>
+            <Pressable
+              style={({ pressed }) => [styles.acceptButton, pressed && styles.btnPressed]}
+              onPress={() => {
+                if (receivedRequestId && onAcceptRequest) {
+                  onAcceptRequest(receivedRequestId);
+                }
+              }}
+            >
+              <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.declineButton, pressed && styles.btnPressed]}
+              onPress={() => {
+                if (receivedRequestId && onDeclineRequest) {
+                  onDeclineRequest(receivedRequestId);
+                }
+              }}
+            >
+              <Ionicons name="close" size={16} color="#E74C3C" />
+            </Pressable>
+          </View>
+        ) : (
+          <View style={styles.friendBadge}>
+            <Ionicons name="checkmark-circle" size={14} color="#00B894" />
+            <Text style={styles.friendBadgeText}>Friends</Text>
+          </View>
+        )}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {},
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#F0EDFF',
+    shadowColor: '#6C5CE7',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    gap: 12,
+  },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#E8DEFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#F2EDFF',
+  },
+  avatarText: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#6C5CE7',
+    letterSpacing: 0.5,
+  },
+  userInfo: {
+    flex: 1,
+  },
+  fullName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#2D2D3A',
+  },
+  username: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#8B8BA0',
+    marginTop: 2,
+  },
+  actionContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  btnPressed: {
+    transform: [{ scale: 0.96 }],
+    opacity: 0.85,
+  },
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#6C5CE7',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    shadowColor: '#6C5CE7',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  addButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  sentBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFF4EE',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#FFE3D2',
+  },
+  sentBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#E17055',
+  },
+  receivedActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  acceptButton: {
+    backgroundColor: '#00B894',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#00B894',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  declineButton: {
+    backgroundColor: '#FFF0F0',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FFE0E0',
+  },
+  friendBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#EDFCF5',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#C6F6D9',
+  },
+  friendBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#00B894',
+  },
 });

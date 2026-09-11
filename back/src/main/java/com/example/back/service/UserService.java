@@ -28,6 +28,12 @@ public class UserService {
                 .orElseThrow(() -> new ResourceNotFoundException("This email does not exist."));
     }
 
+    @Transactional(readOnly = true)
+    public User findUserByUsername(String username){
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> new ResourceNotFoundException("This username does not exist."));
+    }
+
     @Transactional
     public void deleteUserByEmail(String email){
         User user= userRepository.findByEmail(email)
