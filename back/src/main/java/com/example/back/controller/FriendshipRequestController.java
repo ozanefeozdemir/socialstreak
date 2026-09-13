@@ -47,7 +47,7 @@ public class FriendshipRequestController {
     }
 
     @DeleteMapping("/{reqId}")
-    public ResponseEntity<Void> deleteRequest(@PathVariable("reqId") UUID reqId, @AuthenticationPrincipal User user){
+    public ResponseEntity<Void> deleteRequest(@PathVariable("reqId") UUID reqId, @AuthenticationPrincipal UserPrincipal user){
         friendshipRequestService.removeRequest(reqId, user.getId());
         return ResponseEntity
                 .noContent()

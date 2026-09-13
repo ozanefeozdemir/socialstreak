@@ -124,23 +124,122 @@
   - Connected `app/(tabs)/profile.tsx` to display active user's full name and `@username` directly from `useAuth().user`.
 
 ### What's next
-- [ ] Connect Friends count stat card in `app/(tabs)/profile.tsx` to open the Friends list view using `FriendCard`.
+- [x] Connect Friends count stat card in `app/(tabs)/profile.tsx` to open the Friends list view using `FriendCard`.
 - [ ] Habit Type & Custom Metadata: Implement specialized fields per habit type.
 - [ ] Social Feed integration: Connect friends' check-in activity feed.
+
+---
+
+## Session 5 — 2026-09-12 (Profile Screen Friends List & Stats Enhancement)
+
+### What was done
+- ✅ **Profile Stats Grid**:
+  - Implemented 4-stat card layout: **Day Streak**, **Check-ins**, **Habits** (dynamic via `useHabits()`), and **Friends** (dynamic via `useFriends()`).
+  - Added interactive styling and touch feedback on the **Friends** stat card to trigger the Friends modal.
+- ✅ **Profile Inline Friends Preview**:
+  - Added dedicated Friends section in Profile with real-time friend count badge.
+  - Quick action buttons: "+ Find" navigating directly to Discover tab, and "See All" opening the modal.
+  - Renders the latest 3 friends using `FriendCard` with "+N more friends" expansion prompt.
+  - Playful mascot empty state encouraging user to discover friends if count is 0.
+- ✅ **Friends List Modal**:
+  - Built full slide-up sheet modal with count badge, close button, and "+ Add" shortcut to Discover.
+  - Live search bar filtering friends dynamically by `@username` or first/last name.
+  - Integrated unfriend confirmation (`Alert.alert`) hooked into `useRemoveFriend()` mutation with optimistic cache updates.
+- ✅ **Verification**:
+  - Clean TypeScript compilation with zero errors (`npx tsc --noEmit`).
+
+### What's next
+- [x] Social Feed integration: Show friend habit check-in activities and streak achievements
+- [x] Profile Section Refactor: Habit Streaks modal with highest streaks per habit & remove bottom friends list
+- [ ] Habit Type & Custom Metadata: Implement specialized fields per habit type (Book: page tracking, Running: distance/time, etc.)
+- [ ] Settings screen polish
+
+---
+
+## Session 6 — 2026-09-12 (Social Feed Implementation & Auto-Checkin Loop)
+
+### What was done
+- ✅ **Backend Feed System**:
+  - Implemented `FeedItemRespond.java` DTO carrying check-in ID, check-in date, creation timestamp, friend profile (`UserRespond`), habit details (`HabitRespond`), and computed habit streak.
+  - Added `findFeedCheckInsByUserIds` JPA query in `CheckInRepository.java` to fetch friend check-ins for active habits ordered chronologically (`createdAt DESC`).
+  - Built `FeedService.java` with dynamic streak computation calculating consecutive check-in day runs for friends' habits.
+  - Exposed `GET /api/feed` endpoint via `FeedController.java` with user authentication.
+- ✅ **Frontend Feed Integration**:
+  - Defined `FeedItemRespond` in `types/index.ts`.
+  - Built `api/endpoints/feed.ts` and exported `feedApi` in `api/index.ts`.
+  - Created `useFeed()` React Query hook with automatic cache invalidation on check-ins and check-in deletion.
+- ✅ **Gamified Feed UI**:
+  - Created `components/feed/FeedSummaryBanner.tsx` with dynamic cheer summary banner based on friends' today check-in count.
+  - Created `components/feed/FeedItem.tsx` with pastel avatar theming, friend metadata, relative timestamps (*Just now*, *2h ago*), habit category badges, flame streak counters, and interactive spring-animated **Cheer 🔥** reaction button.
+  - Built `app/(tabs)/feed.tsx` featuring `FlatList` with `RefreshControl` pull-to-refresh, staggered card entrance animations, and playful mascot empty states (with direct "+ Find Friends" and "Go to My Habits" action buttons).
+- ✅ **Verification**:
+  - Backend compilation: `./gradlew compileJava` succeeded.
+  - Frontend type check: `npx tsc --noEmit` passed with 0 errors.
+
+---
+
+## Session 7 — 2026-09-12 (Profile Section Refactor & Habit Streaks Modal)
+
+### What was done
+- ✅ **Streaks Calculation Engine**:
+  - Enhanced `front/utils/streak.ts` with `calculateHighestStreak` (calculates all-time maximum consecutive daily check-ins for any habit), `calculateCurrentStreak`, and `calculateHabitStats`.
+  - Added `useHabitsStreakStats` React Query hook in `front/hooks/useHabits.ts` that fetches check-ins across all user habits and aggregates per-habit metrics (current streak, highest streak, total check-ins) and user lifetime totals.
+- ✅ **Habit Streak Card Component**:
+  - Built `components/habit/HabitStreakCard.tsx` displaying habit title, frequency badge, all-time highest record pill (`🔥 Best: X days`), current streak pill (`⚡ Current: Y days`), and total check-ins badge.
+  - Pressing a habit card navigates directly to `/habit/[id]`.
+- ✅ **Profile Screen Redesign (`app/(tabs)/profile.tsx`)**:
+  - **Removed inline bottom friends list**: Friends are now cleanly managed via the interactive **Friends** stat card modal.
+  - **Interactive Day Streak Stat Card**: Tapping opens the **Habit Streaks Modal** with live search bar filtering, highest-to-lowest streak sorting, and empty state with "+ Create Habit" CTA.
+  - **Live Aggregate Stats**: Day Streak displays overall best streak record, Check-ins shows lifetime total check-ins, Habits shows active habits count, and Friends shows friend count.
+  - **Account Details & Settings**: Added user account details card (Email, Username, Timezone) and quick settings actions including Logout with confirmation dialog.
+- ✅ **Verification**:
+  - Frontend type check: `npx tsc --noEmit` passed with 0 errors.
+
+### What's next
+- [ ] Habit Type & Custom Metadata: Implement specialized fields per habit type (Book: page tracking, Running: distance/time, etc.)
+- [ ] Add subtle timer (e.g., "3 hours left") on habit cards with green-to-red colorization
+- [ ] Settings screen polish
+- [ ] Profile inspection when tapping on friends in feed or profile
+
+---
+
+## Session 8 — 2026-09-13 (Refresh Token Architecture & Silent Auto-Renewal)
+
+### What was done
+- ✅ **Backend Refresh Token Infrastructure**:
+  - Added `RefreshToken` JPA entity mapped to `refresh_tokens` table with user relationship, unique index, and expiration tracking.
+  - Implemented `RefreshTokenRepository` with lookup and cleanup queries (`deleteByUser`, `deleteByToken`, `deleteByExpiresAtBefore`).
+  - Added separate signing secret (`JWT_REFRESH_SECRET`) and configuration (`jwt.expiration=900000` [15 min], `jwt.refresh-expiration=2592000000` [30 days]).
+  - Enhanced `JwtService` with refresh token generation, expiration checks, and username extraction.
+  - Updated `AuthService` to issue token pairs (access + refresh), implement single-use token rotation on `POST /api/auth/refresh`, and server-side revocation on `POST /api/auth/logout`.
+  - Added `shouldNotFilter` in `JwtAuthFilter` for `/api/auth/**` paths to prevent expired Bearer headers from blocking refresh/login/logout requests.
+- ✅ **Frontend Silent Refresh & Session Persistence**:
+  - Added secure storage helpers (`saveRefreshToken`, `getRefreshToken`, `clearRefreshToken`) using `SecureStore` (mobile) / `localStorage` (web).
+  - Re-architected Axios response interceptor in `front/api/client.ts` with request queueing (`failedQueue`) to prevent race conditions during refresh, transparently renew access tokens, and replay pending requests.
+  - Integrated `setOnAuthFailure` event listener to cleanly wipe cache and transition state to logged out if refresh fails or tokens are revoked.
+  - Updated `AuthContext` to persist sessions with refresh tokens and revoke tokens server-side during logout.
+- ✅ **Verification**:
+  - Backend tests: `./gradlew test` passed with full unit test coverage in `AuthServiceTest`.
+  - Frontend type check: `npx tsc --noEmit` passed with 0 errors.
 
 ---
 
 ## Backlog / Future Work
 
 - [ ] Most common / trending habits list in Discover tab (habit templates/suggestions)
+- [ ] Add subtle timer (3 Hours left) to habit cards in habits list view to remind user check in and colorize the timer green to red according to remaining time. 
 - [ ] Public/private habit visibility toggle (backend + frontend)
-- [ ] Feed endpoint (`GET /api/feed`)
+- [ ] Profile inspection with clicking on friends in feed or profile.
+- [x] Feed endpoint (`GET /api/feed`)
+- [x] Profile Day Streak modal with highest streak per habit
 - [ ] Habit type metadata (backend schema change)
 - [ ] Check-in metadata (backend schema change)
-- [ ] Token refresh flow
+- [x] Token refresh flow
 - [ ] Push notifications
 - [ ] Pagination (users, feed, check-in history)
 - [ ] Profile picture upload
 - [ ] Streak leaderboard
 - [ ] Offline support (React Query persistence)
 - [ ] App Store / Play Store submission
+
+

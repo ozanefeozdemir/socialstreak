@@ -3,9 +3,13 @@ import {
   getToken,
   saveToken,
   clearToken,
+  getRefreshToken,
+  saveRefreshToken,
+  clearRefreshToken,
   getStoredUser,
   saveStoredUser,
   clearStoredUser,
+  setOnAuthFailure,
 } from '@/api/client';
 import { authApi } from '@/api/endpoints/auth';
 import { usersApi } from '@/api/endpoints/users';
@@ -36,15 +40,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isLoading: true,
   });
 
-  // Load stored token and user profile on app launch
+  // Listen for forced logout / refresh failure from Axios interceptor
+  useEffect(() => {
+    setOnAuthFailure(() => {
+      queryClient.clear();
+      setState({
+        token: null,
+        user: null,
+        isLoggedIn: false,
+        isLoading: false,
+      });
+    });
+    return () => {
+      setOnAuthFailure(null);
+    };
+  }, []);
+
+  // Load stored token, refresh token, and user profile on app launch
   useEffect(() => {
     (async () => {
       try {
-        const [token, storedUser] = await Promise.all([getToken(), getStoredUser()]);
+        const [token, refreshToken, storedUser] = await Promise.all([
+          getToken(),
+          getRefreshToken(),
+          getStoredUser(),
+        ]);
+        const hasSession = !!(token || refreshToken);
         setState({
           token,
           user: storedUser,
-          isLoggedIn: !!token,
+          isLoggedIn: hasSession,
           isLoading: false,
         });
       } catch {
@@ -57,7 +82,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Clear any previous user's cached queries immediately
     queryClient.clear();
     const response = await authApi.login(data);
-    await saveToken(response.token);
+    await Promise.all([
+      saveToken(response.token),
+      response.refreshToken ? saveRefreshToken(response.refreshToken) : Promise.resolve(),
+    ]);
 
     // Fetch full user profile matching username
     let loggedInUser: UserRespond | null = null;
@@ -85,7 +113,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Clear any previous user's cached queries immediately
     queryClient.clear();
     const response = await authApi.register(data);
-    await saveToken(response.token);
+    await Promise.all([
+      saveToken(response.token),
+      response.refreshToken ? saveRefreshToken(response.refreshToken) : Promise.resolve(),
+    ]);
 
     // Fetch full user profile matching registered username
     let registeredUser: UserRespond | null = null;
@@ -110,7 +141,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    await Promise.all([clearToken(), clearStoredUser()]);
+    const refreshToken = await getRefreshToken();
+    if (refreshToken) {
+      try {
+        await authApi.logout(refreshToken);
+      } catch {
+        // Ignore network error on logout revocation
+      }
+    }
+    await Promise.all([clearToken(), clearRefreshToken(), clearStoredUser()]);
     // Wipe all cached queries (habits, check-ins, user data) from memory
     queryClient.clear();
     setState({
@@ -140,4 +179,3 @@ export function useAuth(): AuthContextType {
   }
   return context;
 }
-

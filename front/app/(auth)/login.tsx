@@ -91,7 +91,7 @@ export default function LoginScreen() {
           {/* Form Card */}
           <Animated.View entering={FadeInDown.springify().damping(18).delay(400)} style={styles.card}>
             <Input
-              icon="✉️"
+              //icon="✉️"
               placeholder="Email address"
               value={email}
               onChangeText={(text) => {
@@ -104,7 +104,7 @@ export default function LoginScreen() {
               autoCorrect={false}
             />
             <Input
-              icon="🔒"
+              //icon="🔒"
               placeholder="Password"
               value={password}
               onChangeText={(text) => {
@@ -156,7 +156,7 @@ export default function LoginScreen() {
           <Animated.View entering={FadeInDown.springify().damping(18).delay(600)} style={styles.oauthContainer}>
             <Pressable
               style={({ pressed }) => [styles.oauthButton, pressed && styles.oauthPressed]}
-              onPress={() => {/* TODO: Google OAuth */}}
+              onPress={() => {/* TODO: Google OAuth */ }}
             >
               <Text style={styles.oauthIcon}>G</Text>
               <Text style={styles.oauthLabel}>Google</Text>
@@ -164,7 +164,7 @@ export default function LoginScreen() {
 
             <Pressable
               style={({ pressed }) => [styles.oauthButton, styles.appleButton, pressed && styles.oauthPressed]}
-              onPress={() => {/* TODO: Apple OAuth */}}
+              onPress={() => {/* TODO: Apple OAuth */ }}
             >
               <Text style={styles.appleIcon}></Text>
               <Text style={styles.appleLabel}>Apple</Text>

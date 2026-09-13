@@ -2,9 +2,10 @@ import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
-import type { UserRespond } from '@/types';
+import type { AuthRespond, UserRespond } from '@/types';
 
 const TOKEN_KEY = 'auth_token';
+const REFRESH_TOKEN_KEY = 'auth_refresh_token';
 const USER_KEY = 'auth_user';
 
 const getBaseUrl = (): string => {
@@ -26,6 +27,14 @@ const apiClient = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+// ── Auth failure listener ────────────────────────────
+type AuthFailureListener = () => void;
+let onAuthFailureListener: AuthFailureListener | null = null;
+
+export const setOnAuthFailure = (listener: AuthFailureListener | null) => {
+  onAuthFailureListener = listener;
+};
 
 // ── Token helpers ───────────────────────────────────
 // Platform kontrolü eklenerek Web (localStorage) ve Mobil (SecureStore) ayrımı yapıldı
@@ -51,6 +60,30 @@ export const clearToken = async (): Promise<void> => {
     localStorage.removeItem(TOKEN_KEY);
   } else {
     await SecureStore.deleteItemAsync(TOKEN_KEY);
+  }
+};
+
+// ── Refresh Token helpers ────────────────────────────
+export const saveRefreshToken = async (refreshToken: string): Promise<void> => {
+  if (Platform.OS === 'web') {
+    localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+  } else {
+    await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken);
+  }
+};
+
+export const getRefreshToken = async (): Promise<string | null> => {
+  if (Platform.OS === 'web') {
+    return localStorage.getItem(REFRESH_TOKEN_KEY);
+  }
+  return SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+};
+
+export const clearRefreshToken = async (): Promise<void> => {
+  if (Platform.OS === 'web') {
+    localStorage.removeItem(REFRESH_TOKEN_KEY);
+  } else {
+    await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
   }
 };
 
@@ -98,15 +131,88 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error),
 );
 
-// ── Response Interceptor: Handle auth errors ────────
+// ── Response Interceptor: Handle silent refresh & auth errors ────────
+let isRefreshing = false;
+let failedQueue: Array<{
+  resolve: (token: string) => void;
+  reject: (error: unknown) => void;
+}> = [];
+
+const processQueue = (error: unknown, token: string | null = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error);
+    } else {
+      prom.resolve(token!);
+    }
+  });
+  failedQueue = [];
+};
+
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response?.status === 401) {
-      // Helper kullanarak token'ı siliyoruz
-      await clearToken();
-      // TODO: Navigate to login screen
+    const originalRequest = error.config;
+
+    // Do not attempt refresh for auth endpoints themselves (login, register, refresh, logout)
+    const isAuthEndpoint = originalRequest?.url?.includes('/auth/');
+
+    if (error.response?.status === 401 && !originalRequest?._retry && !isAuthEndpoint) {
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        })
+          .then((token) => {
+            if (originalRequest.headers) {
+              originalRequest.headers.Authorization = `Bearer ${token}`;
+            }
+            return apiClient(originalRequest);
+          })
+          .catch((err) => Promise.reject(err));
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        const currentRefreshToken = await getRefreshToken();
+        if (!currentRefreshToken) {
+          throw new Error('No refresh token available');
+        }
+
+        // Use independent axios instance to prevent interceptor recursion
+        const response = await axios.post<AuthRespond>(
+          `${getBaseUrl()}/auth/refresh`,
+          { refreshToken: currentRefreshToken },
+          { headers: { 'Content-Type': 'application/json' } }
+        );
+
+        const { token: newAccessToken, refreshToken: newRefreshToken } = response.data;
+        await saveToken(newAccessToken);
+        if (newRefreshToken) {
+          await saveRefreshToken(newRefreshToken);
+        }
+
+        processQueue(null, newAccessToken);
+
+        if (originalRequest.headers) {
+          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+        }
+        return apiClient(originalRequest);
+      } catch (refreshError) {
+        processQueue(refreshError, null);
+        await clearToken();
+        await clearRefreshToken();
+        await clearStoredUser();
+        if (onAuthFailureListener) {
+          onAuthFailureListener();
+        }
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
+      }
     }
+
     return Promise.reject(error);
   },
 );

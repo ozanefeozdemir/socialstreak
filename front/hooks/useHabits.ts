@@ -1,6 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { habitsApi } from '@/api/endpoints/habits';
+import { checkInsApi } from '@/api/endpoints/checkins';
 import { useAuth } from '@/contexts/AuthContext';
+import { calculateHabitStats, type HabitStreakStats } from '@/utils/streak';
 import type { HabitRequest, HabitRespond } from '@/types';
 
 const HABITS_KEY = ['habits'];
@@ -72,3 +74,66 @@ export function useDeleteHabit() {
     },
   });
 }
+
+export interface HabitsStatsSummary {
+  statsMap: Record<string, HabitStreakStats>;
+  maxHighestStreak: number;
+  maxCurrentStreak: number;
+  totalCheckIns: number;
+}
+
+export function useHabitsStreakStats(habits: HabitRespond[] | undefined) {
+  const { token } = useAuth();
+  const habitIds = habits?.map((h) => h.id).join(',') || '';
+
+  return useQuery<HabitsStatsSummary>({
+    queryKey: ['habitStreakStats', token, habitIds],
+    queryFn: async () => {
+      if (!habits || habits.length === 0) {
+        return {
+          statsMap: {},
+          maxHighestStreak: 0,
+          maxCurrentStreak: 0,
+          totalCheckIns: 0,
+        };
+      }
+
+      const results = await Promise.all(
+        habits.map(async (habit) => {
+          try {
+            const checkIns = await checkInsApi.getAll(habit.id);
+            return calculateHabitStats(habit.id, checkIns);
+          } catch {
+            return {
+              habitId: habit.id,
+              currentStreak: 0,
+              highestStreak: 0,
+              totalCheckIns: 0,
+            };
+          }
+        })
+      );
+
+      const statsMap: Record<string, HabitStreakStats> = {};
+      let maxHighest = 0;
+      let maxCurrent = 0;
+      let totalCheckIns = 0;
+
+      for (const stat of results) {
+        statsMap[stat.habitId] = stat;
+        if (stat.highestStreak > maxHighest) maxHighest = stat.highestStreak;
+        if (stat.currentStreak > maxCurrent) maxCurrent = stat.currentStreak;
+        totalCheckIns += stat.totalCheckIns;
+      }
+
+      return {
+        statsMap,
+        maxHighestStreak: maxHighest,
+        maxCurrentStreak: maxCurrent,
+        totalCheckIns,
+      };
+    },
+    enabled: !!token && !!habits && habits.length > 0,
+  });
+}
+

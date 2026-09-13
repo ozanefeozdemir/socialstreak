@@ -17,8 +17,8 @@ export function useCheckIn() {
     mutationFn: (habitId: string) => checkInsApi.checkIn(habitId),
     onSuccess: (_data, habitId) => {
       queryClient.invalidateQueries({ queryKey: [...CHECKINS_KEY, habitId] });
-      // Also invalidate todayCheckedIn queries
       queryClient.invalidateQueries({ queryKey: ['todayCheckIns'] });
+      queryClient.invalidateQueries({ queryKey: ['feed'] });
     },
   });
 }
@@ -31,6 +31,7 @@ export function useDeleteCheckIn() {
     onSuccess: (_data, { habitId }) => {
       queryClient.invalidateQueries({ queryKey: [...CHECKINS_KEY, habitId] });
       queryClient.invalidateQueries({ queryKey: ['todayCheckIns'] });
+      queryClient.invalidateQueries({ queryKey: ['feed'] });
     },
   });
 }

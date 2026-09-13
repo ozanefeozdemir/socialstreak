@@ -20,7 +20,12 @@ export interface RegisterRequest {
 
 export interface AuthRespond {
   token: string;
+  refreshToken: string;
   username: string;
+}
+
+export interface RefreshTokenRequest {
+  refreshToken: string;
 }
 
 // ── User ──────────────────────────────────────────
@@ -78,6 +83,16 @@ export interface FriendRequestRespond {
   sender: UserRespond;
   receiver: UserRespond;
   createdAt: string; // ISO 8601 Instant
+}
+
+// ── Feed ──────────────────────────────────────────
+export interface FeedItemRespond {
+  id: string;
+  checkInDate: string; // YYYY-MM-DD
+  createdAt: string;   // ISO 8601 Instant
+  user: UserRespond;
+  habit: HabitRespond;
+  streak: number;
 }
 
 // ── Error ─────────────────────────────────────────

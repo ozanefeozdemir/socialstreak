@@ -128,43 +128,18 @@ export default function RegisterScreen() {
           {/* Title */}
           <Animated.View entering={FadeInUp.duration(600).delay(300)} style={styles.titleContainer}>
             <Text style={styles.title}>Join the Streak</Text>
-            <Text style={styles.subtitle}>Create your account in seconds ⚡</Text>
           </Animated.View>
 
-          {/* OAuth first (quicker signup) */}
-          <Animated.View entering={FadeInDown.springify().damping(18).delay(400)} style={styles.oauthContainer}>
-            <Pressable
-              style={({ pressed }) => [styles.oauthButton, pressed && styles.oauthPressed]}
-              onPress={() => {/* TODO: Google OAuth */ }}
-            >
-              <Text style={styles.googleIcon}>G</Text>
-              <Text style={styles.oauthLabel}>Continue with Google</Text>
-            </Pressable>
 
-            <Pressable
-              style={({ pressed }) => [styles.oauthButton, styles.appleButton, pressed && styles.oauthPressed]}
-              onPress={() => {/* TODO: Apple OAuth */ }}
-            >
-              <Text style={styles.appleIcon}></Text>
-              <Text style={styles.appleLabel}>Continue with Apple</Text>
-            </Pressable>
-          </Animated.View>
 
-          {/* Divider */}
-          <Animated.View entering={FadeInDown.duration(500).delay(500)} style={styles.dividerContainer}>
-            <View style={styles.dividerLine} />
-            <View style={styles.dividerPill}>
-              <Text style={styles.dividerText}>OR</Text>
-            </View>
-            <View style={styles.dividerLine} />
-          </Animated.View>
+
 
           {/* Form Card */}
           <Animated.View entering={FadeInDown.springify().damping(18).delay(600)} style={styles.card}>
             <View style={styles.nameRow}>
               <View style={styles.nameField}>
                 <Input
-                  icon="👤"
+                  //icon="👤"
                   placeholder="Name"
                   value={form.name}
                   onChangeText={(v) => updateField('name', v)}
@@ -174,7 +149,7 @@ export default function RegisterScreen() {
               </View>
               <View style={styles.nameField}>
                 <Input
-                  icon="👤"
+                  //icon="👤"
                   placeholder="Surname"
                   value={form.surname}
                   onChangeText={(v) => updateField('surname', v)}
@@ -185,7 +160,7 @@ export default function RegisterScreen() {
             </View>
 
             <Input
-              icon="🏷️"
+              //icon="🏷️"
               placeholder="Username (4-10 chars)"
               value={form.username}
               onChangeText={(v) => updateField('username', v)}
@@ -195,7 +170,7 @@ export default function RegisterScreen() {
             />
 
             <Input
-              icon="✉️"
+              //icon="✉️"
               placeholder="Email address"
               value={form.email}
               onChangeText={(v) => updateField('email', v)}
@@ -206,7 +181,7 @@ export default function RegisterScreen() {
             />
 
             <Input
-              icon="🔒"
+              //icon="🔒"
               placeholder="Password (min. 8 chars)"
               value={form.password}
               onChangeText={(v) => updateField('password', v)}
@@ -215,7 +190,7 @@ export default function RegisterScreen() {
             />
 
             <Input
-              icon="🔐"
+              //icon="🔐"
               placeholder="Confirm password"
               value={form.confirmPassword}
               onChangeText={(v) => updateField('confirmPassword', v)}
@@ -244,6 +219,32 @@ export default function RegisterScreen() {
               ) : (
                 <Text style={styles.registerButtonText}>Let's Go! </Text>
               )}
+            </Pressable>
+          </Animated.View>
+          {/* Divider */}
+          <Animated.View entering={FadeInDown.duration(500).delay(500)} style={styles.dividerContainer}>
+            <View style={styles.dividerLine} />
+            <View style={styles.dividerPill}>
+              <Text style={styles.dividerText}>OR</Text>
+            </View>
+            <View style={styles.dividerLine} />
+          </Animated.View>
+          {/* OAuth first (quicker signup) */}
+          <Animated.View entering={FadeInDown.springify().damping(18).delay(400)} style={styles.oauthContainer}>
+            <Pressable
+              style={({ pressed }) => [styles.oauthButton, pressed && styles.oauthPressed]}
+              onPress={() => {/* TODO: Google OAuth */ }}
+            >
+              <Text style={styles.googleIcon}>G</Text>
+              <Text style={styles.oauthLabel}>Continue with Google</Text>
+            </Pressable>
+
+            <Pressable
+              style={({ pressed }) => [styles.oauthButton, styles.appleButton, pressed && styles.oauthPressed]}
+              onPress={() => {/* TODO: Apple OAuth */ }}
+            >
+              <Text style={styles.appleIcon}></Text>
+              <Text style={styles.appleLabel}>Continue with Apple</Text>
             </Pressable>
           </Animated.View>
 

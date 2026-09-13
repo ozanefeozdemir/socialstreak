@@ -20,6 +20,12 @@ public class JwtService {
     @Value("${jwt.expiration}")
     private long jwtExp;
 
+    @Value("${jwt.refresh-secret:${jwt.secret}}")
+    private String refreshSecret;
+
+    @Value("${jwt.refresh-expiration:2592000000}")
+    private long refreshExp;
+
     public String generateToken(String username){
         return Jwts.builder()
                 .subject(username)
@@ -29,9 +35,26 @@ public class JwtService {
                 .compact();
     }
 
+    public String generateRefreshToken(String username){
+        return Jwts.builder()
+                .subject(username)
+                .issuedAt(new Date(System.currentTimeMillis()))
+                .expiration(new Date(System.currentTimeMillis() + refreshExp))
+                .signWith(getRefreshSigningKey())
+                .compact();
+    }
+
     public String extractUsername(String token){
         return extractClaim(token, Claims::getSubject);
+    }
 
+    public String extractRefreshTokenUsername(String token){
+        Claims claims = Jwts.parser()
+                .verifyWith(getRefreshSigningKey())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+        return claims.getSubject();
     }
 
     private <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
@@ -60,10 +83,15 @@ public class JwtService {
         return extractClaim(token, Claims::getExpiration);
     }
 
-
     private SecretKey getSigningKey() {
         return Keys.hmacShaKeyFor(secret.getBytes());
     }
 
+    private SecretKey getRefreshSigningKey() {
+        return Keys.hmacShaKeyFor(refreshSecret.getBytes());
+    }
 
+    public long getRefreshExp() {
+        return refreshExp;
+    }
 }

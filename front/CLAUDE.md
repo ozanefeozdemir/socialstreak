@@ -183,6 +183,16 @@ DAILY | WEEKLY | MONTHLY | CUSTOM
 
 ---
 
+### Feed — `/api/feed` (AUTHENTICATED)
+
+| Method | Path         | Response             | Notes                             |
+|--------|--------------|----------------------|-----------------------------------|
+| GET    | `/api/feed`  | `FeedItemRespond[]`  | Chronological check-ins of friends|
+
+**FeedItemRespond**: `{ id, checkInDate, createdAt, user: UserRespond, habit: HabitRespond, streak: number }`
+
+---
+
 ### Users — `/api/user` (AUTHENTICATED)
 
 | Method | Path                     | Request Body                         | Response        | Notes                   |
@@ -266,7 +276,8 @@ front/
 │       ├── checkins.ts      → checkIn, list, delete
 │       ├── friends.ts       → list, delete
 │       ├── friendRequests.ts→ sent, received, send, accept, delete
-│       └── users.ts         → get, update, changePassword, delete
+│       ├── users.ts         → get, update, changePassword, delete
+│       └── feed.ts          → getFeed (friend activity feed)
 ├── types/
 │   └── index.ts             → TypeScript interfaces matching backend DTOs
 └── hooks/
@@ -308,7 +319,7 @@ front/
 | 1. Feed | `(tabs)/feed.tsx` | Social feed of friends' check-in activity |
 | 2. Discover | `(tabs)/discover.tsx` | Segmented switcher: Find Friends (search users) & Requests (received/sent) |
 | 3. **Habits** (center) | `(tabs)/index.tsx` | User's habit list + "New Habit" button — the hero tab |
-| 4. Profile | `(tabs)/profile.tsx` | User stats & streaks. Tapping Friends stat opens Friend List |
+| 4. Profile | `(tabs)/profile.tsx` | User stats, Day Streak modal (highest streak per habit) & Friends modal |
 | 5. Settings | `(tabs)/settings.tsx` | Account management, logout |
 
 **Routing Groups**:
@@ -338,11 +349,35 @@ The Discover screen uses a top segmented pill switcher with two primary views:
    - **Received Requests Section**: Incoming invites with user avatar, name, and action buttons (`Accept` / `Decline`).
    - **Sent Requests Section**: Outgoing pending requests with `Cancel` button.
 
-### Friend List in Profile
-- `profile.tsx` displays user stats: **Day Streak**, **Check-ins**, **Habits**, and **Friends** count.
-- Tapping the **Friends** stat card opens the user's friend list (modal or sub-view):
-  - Lists all current friends (`GET /api/friendship`).
-  - Displays avatar, name, `@username`, and an option to remove friendship (`DELETE /api/friendship/{friendId}`).
+---
+
+## Profile Screen & Interactive Modals
+
+`profile.tsx` displays user header (avatar, full name, `@username`, timezone), 4-card live statistics grid, account details, and quick settings:
+
+1. **4-Card Stats Grid**:
+   - **Day Streak** (🔥): Shows the user's best streak record across all habits. Interactive -> opens **Habit Streaks Modal**.
+   - **Check-ins** (✓): Shows total lifetime check-ins across all habits.
+   - **Habits** (🏆): Shows active habits count.
+   - **Friends** (👥): Shows friends count. Interactive -> opens **Friends Modal**.
+
+2. **Habit Streaks Modal**:
+   - Opened by tapping the **Day Streak** card.
+   - Lists all habits with their **all-time highest streak** (`🔥 Best: X days`), **current streak** (`⚡ Current: Y days`), frequency pill badge, and total check-ins count.
+   - Real-time client-side search bar filtering habits by name (`useMemo`).
+   - Sorted automatically by highest streak descending.
+   - Tapping any habit card navigates directly to `/habit/[id]`.
+   - "New" button to easily create new habits.
+
+3. **Friends Modal**:
+   - Opened by tapping the **Friends** card.
+   - Full list of current friends (`GET /api/friendship`) with search filtering and friend removal action (`DELETE /api/friendship/{friendId}`).
+   - Quick navigation to Discover screen.
+
+4. **Account Details & Settings**:
+   - Account info card (Email, Username, Timezone).
+   - Quick action shortcuts (View Habit Streaks, Manage Friends, Log Out with confirmation).
+
 
 ---
 
@@ -369,14 +404,15 @@ Each habit has a `habitType` determining which metadata fields are available. Ch
 
 ## Social Feed
 
-When a user checks in a habit, it appears in their friends' Feed tab. Feed items show:
-- Friend's avatar + username
-- Habit name + type icon
-- Check-in metadata (e.g., "pg 142 of Atomic Habits")
-- Streak count (🔥 14 days)
-- Timestamp
+When a user checks in a habit, it automatically appears in their friends' Feed tab. Feed items show:
+- Friend's avatar + username + full name
+- Habit name + frequency tag + completion icon
+- Calculated streak count (🔥 X day streak)
+- Relative timestamp (*Just now*, *2h ago*, *Yesterday*)
+- Interactive **Cheer 🔥** reaction button with spring bounce animation
+- Top **Activity Summary Banner** (friends checked in today count & daily squad motivation)
 
-> **Backend change required**: New `GET /api/feed` endpoint returning paginated friend check-ins.
+**API**: `GET /api/feed` returning `FeedItemRespond[]`. Automatically invalidates cache when checking in.
 
 ---
 
@@ -424,8 +460,8 @@ front/
 │   └── useUsers.ts
 ├── components/
 │   ├── ui/                       → Design system (Button, Input, Card)
-│   ├── habit/                    → HabitCard, HabitList, StreakCounter
-│   ├── feed/                     → FeedItem
+│   ├── habit/                    → HabitCard, HabitList, StreakCounter, HabitStreakCard (DONE ✅)
+│   ├── feed/                     → FeedItem, FeedSummaryBanner (DONE ✅)
 │   ├── friend/                   → FriendCard, UserSearchResult, FriendRequestCard (DONE ✅)
 │   └── common/                   → LoadingScreen, EmptyState, ErrorBoundary
 ├── contexts/
