@@ -11,6 +11,7 @@ import {
 import { useRouter } from 'expo-router';
 import Animated, { FadeInUp, BounceIn } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@/contexts/ThemeContext';
 
 import { FeedItem } from '@/components/feed/FeedItem';
 import { FeedSummaryBanner } from '@/components/feed/FeedSummaryBanner';
@@ -20,6 +21,7 @@ import type { FeedItemRespond } from '@/types';
 
 export default function FeedScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const { data: feedItems, isLoading: isFeedLoading, refetch: refetchFeed, isRefetching: isFeedRefetching } = useFeed();
   const { data: friends, isLoading: isFriendsLoading, refetch: refetchFriends, isRefetching: isFriendsRefetching } = useFriends();
 
@@ -48,7 +50,7 @@ export default function FeedScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Background blobs */}
       <View style={styles.blobTopRight} />
       <View style={styles.blobBottomLeft} />
@@ -56,10 +58,10 @@ export default function FeedScreen() {
       {/* Header */}
       <Animated.View entering={FadeInUp.duration(500)} style={styles.header}>
         <View style={styles.headerRow}>
-          <Text style={styles.title}>Feed</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Feed</Text>
           <Ionicons name="newspaper" size={24} color="#6C5CE7" />
         </View>
-        <Text style={styles.subtitle}>See what your friends are up to</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>See what your friends are up to</Text>
       </Animated.View>
 
       {/* Content */}
@@ -71,11 +73,11 @@ export default function FeedScreen() {
       ) : friendCount === 0 ? (
         // Empty state 1: User has no friends yet
         <View style={styles.emptyContainer}>
-          <Animated.View entering={BounceIn.duration(800)} style={styles.emptyCard}>
+          <Animated.View entering={BounceIn.duration(800)} style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.mascotBubble}>
               <Ionicons name="telescope" size={36} color="#6C5CE7" />
             </View>
-            <Text style={styles.emptyTitle}>Your feed is quiet</Text>
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>Your feed is quiet</Text>
             <Text style={styles.emptySubtitle}>
               Connect with friends to see their daily habit check-ins and celebrate streaks together!
             </Text>
@@ -91,11 +93,11 @@ export default function FeedScreen() {
       ) : items.length === 0 ? (
         // Empty state 2: Friends exist, but haven't checked in yet
         <View style={styles.emptyContainer}>
-          <Animated.View entering={BounceIn.duration(800)} style={styles.emptyCard}>
+          <Animated.View entering={BounceIn.duration(800)} style={[styles.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={[styles.mascotBubble, styles.mascotCoffee]}>
               <Ionicons name="cafe" size={36} color="#E17055" />
             </View>
-            <Text style={styles.emptyTitle}>Nothing here yet today</Text>
+            <Text style={[styles.emptyTitle, { color: colors.text }]}>Nothing here yet today</Text>
             <Text style={styles.emptySubtitle}>
               When your friends complete their habits, their achievements will pop up right here.
             </Text>

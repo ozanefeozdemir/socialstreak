@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withSpring, withSequence } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@/contexts/ThemeContext';
 import type { HabitRespond } from '@/types';
 
 const FREQUENCY_LABELS: Record<string, string> = {
@@ -36,6 +37,7 @@ export function HabitCard({
   checkInLoading,
   index,
 }: HabitCardProps) {
+  const { colors, isDark } = useTheme();
   const scale = useSharedValue(1);
   const checkScale = useSharedValue(1);
 
@@ -65,7 +67,7 @@ export function HabitCard({
         onPressIn={() => { scale.value = withSpring(0.97); }}
         onPressOut={() => { scale.value = withSpring(1); }}
       >
-        <Animated.View style={[styles.card, cardAnimatedStyle]}>
+        <Animated.View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: isDark ? '#000000' : '#6C5CE7' }, cardAnimatedStyle]}>
           {/* Left accent bar */}
           <View style={[styles.accentBar, { backgroundColor: accentColor }]} />
 
@@ -73,7 +75,7 @@ export function HabitCard({
             {/* Top row: name + streak */}
             <View style={styles.topRow}>
               <View style={styles.nameContainer}>
-                <Text style={styles.habitName} numberOfLines={1}>{habit.name}</Text>
+                <Text style={[styles.habitName, { color: colors.text }]} numberOfLines={1}>{habit.name}</Text>
                 <View style={[styles.frequencyBadge, { backgroundColor: accentColor + '18' }]}>
                   <Ionicons name="repeat" size={12} color={accentColor} />
                   <Text style={[styles.frequencyText, { color: accentColor }]}>
@@ -83,7 +85,7 @@ export function HabitCard({
               </View>
 
               {streak > 0 ? (
-                <View style={styles.streakContainer}>
+                <View style={[styles.streakContainer, isDark && { backgroundColor: '#3D201A', borderColor: '#5C2D22' }]}>
                   <Ionicons name="flame" size={16} color="#E17055" />
                   <Text style={styles.streakCount}>{streak}</Text>
                 </View>
@@ -96,9 +98,9 @@ export function HabitCard({
                 <Ionicons
                   name={checkedInToday ? 'checkmark-circle' : 'time'}
                   size={16}
-                  color={checkedInToday ? '#00B894' : '#B0B0C0'}
+                  color={checkedInToday ? '#00B894' : colors.textSecondary}
                 />
-                <Text style={[styles.statusText, checkedInToday ? styles.statusDone : undefined]}>
+                <Text style={[styles.statusText, { color: colors.textSecondary }, checkedInToday ? styles.statusDone : undefined]}>
                   {checkedInToday ? 'Done today!' : 'Waiting for check-in'}
                 </Text>
               </View>

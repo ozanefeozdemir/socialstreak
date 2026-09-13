@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import Animated, { FadeInDown, FadeInUp, BounceIn } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@/contexts/ThemeContext';
 
 import { useHabit } from '@/hooks/useHabits';
 import { useCheckIns, useCheckIn } from '@/hooks/useCheckIns';
@@ -51,6 +52,7 @@ function calculateStreak(checkIns: CheckInRespond[]): number {
 export default function HabitDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { colors, isDark } = useTheme();
   const { data: habit, isLoading: habitLoading } = useHabit(id);
   const { data: checkIns, isLoading: checkInsLoading } = useCheckIns(id);
   const checkInMutation = useCheckIn();
@@ -77,14 +79,14 @@ export default function HabitDetailScreen() {
 
   if (isLoading) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.blobTopRight} />
         <Pressable style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={24} color="#6C5CE7" />
-          <Text style={styles.backText}>Back</Text>
+          <Ionicons name="chevron-back" size={24} color={colors.primary} />
+          <Text style={[styles.backText, { color: colors.primary }]}>Back</Text>
         </Pressable>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#6C5CE7" />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       </View>
     );
@@ -92,21 +94,21 @@ export default function HabitDetailScreen() {
 
   if (!habit) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.blobTopRight} />
         <Pressable style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={24} color="#6C5CE7" />
-          <Text style={styles.backText}>Back</Text>
+          <Ionicons name="chevron-back" size={24} color={colors.primary} />
+          <Text style={[styles.backText, { color: colors.primary }]}>Back</Text>
         </Pressable>
         <View style={styles.loadingContainer}>
-          <Text style={styles.errorText}>Habit not found</Text>
+          <Text style={[styles.errorText, { color: colors.text }]}>Habit not found</Text>
         </View>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Background blobs */}
       <View style={styles.blobTopRight} />
       <View style={styles.blobBottomLeft} />
@@ -115,15 +117,18 @@ export default function HabitDetailScreen() {
         {/* Back button */}
         <Animated.View entering={FadeInUp.duration(400)}>
           <Pressable style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={24} color="#6C5CE7" />
-            <Text style={styles.backText}>Back</Text>
+            <Ionicons name="chevron-back" size={24} color={colors.primary} />
+            <Text style={[styles.backText, { color: colors.primary }]}>Back</Text>
           </Pressable>
         </Animated.View>
 
         {/* Header card */}
-        <Animated.View entering={FadeInDown.springify().damping(18).delay(100)} style={styles.headerCard}>
+        <Animated.View
+          entering={FadeInDown.springify().damping(18).delay(100)}
+          style={[styles.headerCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: isDark ? '#000000' : '#6C5CE7' }]}
+        >
           <View style={[styles.accentDot, { backgroundColor: accentColor }]} />
-          <Text style={styles.habitName}>{habit.name}</Text>
+          <Text style={[styles.habitName, { color: colors.text }]}>{habit.name}</Text>
           <View style={[styles.frequencyBadge, { backgroundColor: accentColor + '18' }]}>
             <Ionicons name="repeat" size={14} color={accentColor} />
             <Text style={[styles.frequencyText, { color: accentColor }]}>
@@ -134,22 +139,22 @@ export default function HabitDetailScreen() {
 
         {/* Stats row */}
         <Animated.View entering={FadeInDown.springify().damping(18).delay(200)} style={styles.statsRow}>
-          <View style={styles.statCard}>
+          <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: isDark ? '#000000' : '#6C5CE7' }]}>
             <Ionicons name="flame" size={24} color="#E17055" />
-            <Text style={styles.statValue}>{streak}</Text>
-            <Text style={styles.statLabel}>Streak</Text>
+            <Text style={[styles.statValue, { color: colors.text }]}>{streak}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Streak</Text>
           </View>
-          <View style={styles.statCard}>
+          <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: isDark ? '#000000' : '#6C5CE7' }]}>
             <Ionicons name="checkmark-done" size={24} color="#00B894" />
-            <Text style={styles.statValue}>{checkIns?.length ?? 0}</Text>
-            <Text style={styles.statLabel}>Total</Text>
+            <Text style={[styles.statValue, { color: colors.text }]}>{checkIns?.length ?? 0}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Total</Text>
           </View>
-          <View style={styles.statCard}>
-            <Ionicons name="calendar" size={24} color="#6C5CE7" />
-            <Text style={styles.statValue}>
+          <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: isDark ? '#000000' : '#6C5CE7' }]}>
+            <Ionicons name="calendar" size={24} color={colors.primary} />
+            <Text style={[styles.statValue, { color: colors.text }]}>
               {habit.createdAt ? new Date(habit.createdAt).toLocaleDateString('en', { month: 'short', day: 'numeric' }) : '—'}
             </Text>
-            <Text style={styles.statLabel}>Started</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Started</Text>
           </View>
         </Animated.View>
 
@@ -184,21 +189,23 @@ export default function HabitDetailScreen() {
         {/* Recent activity */}
         {recentCheckIns.length > 0 ? (
           <Animated.View entering={FadeInDown.duration(500).delay(400)} style={styles.activitySection}>
-            <Text style={styles.sectionTitle}>RECENT ACTIVITY</Text>
-            <View style={styles.activityCard}>
+            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>RECENT ACTIVITY</Text>
+            <View style={[styles.activityCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: isDark ? '#000000' : '#6C5CE7' }]}>
               {recentCheckIns.map((ci, i) => (
                 <View key={ci.id} style={styles.activityItem}>
                   <View style={styles.activityDot}>
                     <Ionicons name="checkmark" size={12} color="#00B894" />
                   </View>
-                  <Text style={styles.activityDate}>
+                  <Text style={[styles.activityDate, { color: colors.text }]}>
                     {new Date(ci.checkInDate + 'T00:00:00').toLocaleDateString('en', {
                       weekday: 'short',
                       month: 'short',
                       day: 'numeric',
                     })}
                   </Text>
-                  {i < recentCheckIns.length - 1 ? <View style={styles.activityLine} /> : null}
+                  {i < recentCheckIns.length - 1 ? (
+                    <View style={[styles.activityLine, isDark && { backgroundColor: colors.border }]} />
+                  ) : null}
                 </View>
               ))}
             </View>

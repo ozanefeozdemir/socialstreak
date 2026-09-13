@@ -3,6 +3,7 @@ import { StyleSheet, View, Text, Pressable } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '@/contexts/ThemeContext';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -54,6 +55,7 @@ interface TabItemProps {
   isFocused: boolean;
   onPress: () => void;
   onLongPress: () => void;
+  colors: any;
 }
 
 function TabItem({
@@ -63,6 +65,7 @@ function TabItem({
   isFocused,
   onPress,
   onLongPress,
+  colors,
 }: TabItemProps) {
   const iconScale = useSharedValue(isFocused ? 1.24 : 1.0);
   const iconTranslateY = useSharedValue(isFocused ? -3 : 3);
@@ -116,12 +119,12 @@ function TabItem({
         <Ionicons
           name={isFocused ? activeIcon : inactiveIcon}
           size={22}
-          color={isFocused ? '#6C5CE7' : '#9E9EB5'}
+          color={isFocused ? colors.primary : colors.textSecondary}
         />
       </Animated.View>
 
       <Animated.View style={[styles.labelContainer, animatedTextStyle]}>
-        <Text style={styles.labelText} numberOfLines={1}>
+        <Text style={[styles.labelText, { color: colors.primary }]} numberOfLines={1}>
           {label}
         </Text>
       </Animated.View>
@@ -132,9 +135,15 @@ function TabItem({
 function CustomTabBar({ state, descriptors, navigation }: any) {
   const insets = useSafeAreaInsets();
   const bottomPadding = Math.max(insets.bottom, 12);
+  const { colors, isDark } = useTheme();
 
   return (
-    <View style={[styles.tabBarContainer, { paddingBottom: bottomPadding }]}>
+    <View style={[styles.tabBarContainer, { 
+      paddingBottom: bottomPadding,
+      backgroundColor: colors.card,
+      borderColor: colors.border,
+      shadowColor: isDark ? '#000000' : '#6C5CE7',
+    }]}>
       {state.routes.map((route: any, index: number) => {
         const config = TAB_CONFIG[route.name];
         if (!config) return null;
@@ -169,6 +178,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
             isFocused={isFocused}
             onPress={onPress}
             onLongPress={onLongPress}
+            colors={colors}
           />
         );
       })}
@@ -177,6 +187,8 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
 }
 
 export default function TabLayout() {
+  const { colors } = useTheme();
+
   return (
     <Tabs
       tabBar={(props) => <CustomTabBar {...props} />}

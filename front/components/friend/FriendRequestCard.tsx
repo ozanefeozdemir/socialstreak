@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@/contexts/ThemeContext';
 import type { FriendRequestRespond } from '@/types';
 
 interface FriendRequestCardProps {
@@ -20,28 +21,29 @@ export function FriendRequestCard({
   onCancel,
   isLoading = false,
 }: FriendRequestCardProps) {
+  const { colors, isDark } = useTheme();
   const targetUser = type === 'received' ? request.sender : request.receiver;
   const initials = `${(targetUser.name?.[0] || '').toUpperCase()}${(targetUser.surname?.[0] || '').toUpperCase()}` || (targetUser.username?.[0] || '?').toUpperCase();
   const fullName = [targetUser.name, targetUser.surname].filter(Boolean).join(' ') || targetUser.username;
 
   return (
-    <View style={styles.card}>
-      <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{initials}</Text>
+    <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: isDark ? '#000000' : '#6C5CE7' }]}>
+      <View style={[styles.avatar, { backgroundColor: isDark ? colors.border : '#EDE8FF' }]}>
+        <Text style={[styles.avatarText, { color: colors.primary }]}>{initials}</Text>
       </View>
 
       <View style={styles.content}>
-        <Text style={styles.fullName} numberOfLines={1}>
+        <Text style={[styles.fullName, { color: colors.text }]} numberOfLines={1}>
           {fullName}
         </Text>
-        <Text style={styles.username} numberOfLines={1}>
+        <Text style={[styles.username, { color: colors.textSecondary }]} numberOfLines={1}>
           @{targetUser.username}
         </Text>
       </View>
 
       <View style={styles.actions}>
         {isLoading ? (
-          <ActivityIndicator size="small" color="#6C5CE7" />
+          <ActivityIndicator size="small" color={colors.primary} />
         ) : type === 'received' ? (
           <View style={styles.receivedRow}>
             <Pressable
@@ -52,20 +54,20 @@ export function FriendRequestCard({
               <Text style={styles.acceptBtnText}>Accept</Text>
             </Pressable>
             <Pressable
-              style={({ pressed }) => [styles.declineBtn, pressed && styles.btnPressed]}
+              style={({ pressed }) => [styles.declineBtn, isDark && { backgroundColor: colors.border }, pressed && styles.btnPressed]}
               onPress={() => onDecline?.(request.id)}
             >
-              <Ionicons name="close" size={16} color="#8B8BA0" />
+              <Ionicons name="close" size={16} color={colors.textSecondary} />
             </Pressable>
           </View>
         ) : (
           <View style={styles.sentRow}>
-            <View style={styles.pendingBadge}>
+            <View style={[styles.pendingBadge, isDark && { backgroundColor: '#3D201A', borderColor: '#5C2D22' }]}>
               <Ionicons name="hourglass-outline" size={12} color="#E17055" />
               <Text style={styles.pendingText}>Pending</Text>
             </View>
             <Pressable
-              style={({ pressed }) => [styles.cancelBtn, pressed && styles.btnPressed]}
+              style={({ pressed }) => [styles.cancelBtn, isDark && { backgroundColor: colors.border }, pressed && styles.btnPressed]}
               onPress={() => onCancel?.(request.id)}
             >
               <Text style={styles.cancelBtnText}>Cancel</Text>

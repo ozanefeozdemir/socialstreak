@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface FeedSummaryBannerProps {
   todayCheckInCount: number;
@@ -9,28 +10,51 @@ interface FeedSummaryBannerProps {
 }
 
 export function FeedSummaryBanner({ todayCheckInCount, friendCount }: FeedSummaryBannerProps) {
+  const { colors, isDark } = useTheme();
   const hasActivity = todayCheckInCount > 0;
 
   return (
     <Animated.View entering={FadeInUp.duration(500)} style={styles.container}>
-      <View style={[styles.card, hasActivity ? styles.cardActive : styles.cardQuiet]}>
-        <View style={[styles.iconBubble, hasActivity ? styles.iconBubbleActive : styles.iconBubbleQuiet]}>
+      <View
+        style={[
+          styles.card,
+          hasActivity
+            ? isDark
+              ? { backgroundColor: '#3D201A', borderColor: '#5C2D22', shadowColor: '#000000' }
+              : styles.cardActive
+            : isDark
+            ? { backgroundColor: colors.card, borderColor: colors.border, shadowColor: '#000000' }
+            : styles.cardQuiet,
+        ]}
+      >
+        <View
+          style={[
+            styles.iconBubble,
+            hasActivity
+              ? isDark
+                ? { backgroundColor: '#5C2D22' }
+                : styles.iconBubbleActive
+              : isDark
+              ? { backgroundColor: colors.border }
+              : styles.iconBubbleQuiet,
+          ]}
+        >
           <Ionicons
             name={hasActivity ? 'flame' : 'sparkles'}
             size={22}
-            color={hasActivity ? '#FF7675' : '#6C5CE7'}
+            color={hasActivity ? '#FF7675' : colors.primary}
           />
         </View>
 
         <View style={styles.textContainer}>
-          <Text style={styles.title}>
+          <Text style={[styles.title, { color: colors.text }]}>
             {hasActivity
               ? `${todayCheckInCount} friend${todayCheckInCount > 1 ? 's' : ''} checked in today!`
               : friendCount > 0
               ? 'Your squad is waiting for the first spark ✨'
               : 'Add friends to see their daily progress!'}
           </Text>
-          <Text style={styles.subtitle}>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
             {hasActivity
               ? 'Cheer on your friends to keep their streaks alive 🔥'
               : friendCount > 0

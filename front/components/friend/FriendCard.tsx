@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@/contexts/ThemeContext';
 import type { FriendshipRespond } from '@/types';
 
 interface FriendCardProps {
@@ -10,35 +11,44 @@ interface FriendCardProps {
 }
 
 export function FriendCard({ friendship, onRemove, onPress }: FriendCardProps) {
+  const { colors, isDark } = useTheme();
   const { friend } = friendship;
   const initials = `${(friend.name?.[0] || '').toUpperCase()}${(friend.surname?.[0] || '').toUpperCase()}` || (friend.username?.[0] || '?').toUpperCase();
   const fullName = [friend.name, friend.surname].filter(Boolean).join(' ') || friend.username;
 
   return (
     <Pressable
-      style={({ pressed }) => [styles.card, pressed && onPress ? styles.cardPressed : undefined]}
+      style={({ pressed }) => [
+        styles.card,
+        { backgroundColor: colors.card, borderColor: colors.border, shadowColor: isDark ? '#000000' : '#6C5CE7' },
+        pressed && onPress && { backgroundColor: isDark ? colors.border : '#F8F6FF' },
+      ]}
       onPress={onPress}
       disabled={!onPress}
     >
-      <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{initials}</Text>
+      <View style={[styles.avatar, { backgroundColor: isDark ? colors.border : '#EDE8FF' }]}>
+        <Text style={[styles.avatarText, { color: colors.primary }]}>{initials}</Text>
       </View>
 
       <View style={styles.info}>
-        <Text style={styles.fullName} numberOfLines={1}>
+        <Text style={[styles.fullName, { color: colors.text }]} numberOfLines={1}>
           {fullName}
         </Text>
-        <Text style={styles.username} numberOfLines={1}>
+        <Text style={[styles.username, { color: colors.textSecondary }]} numberOfLines={1}>
           @{friend.username}
         </Text>
       </View>
 
       {onRemove ? (
         <Pressable
-          style={({ pressed }) => [styles.removeButton, pressed && styles.btnPressed]}
+          style={({ pressed }) => [
+            styles.removeButton,
+            { backgroundColor: isDark ? colors.border : '#F3F0FF' },
+            pressed && styles.btnPressed,
+          ]}
           onPress={() => onRemove(friend.id)}
         >
-          <Ionicons name="person-remove-outline" size={16} color="#8B8BA0" />
+          <Ionicons name="person-remove-outline" size={16} color={colors.textSecondary} />
         </Pressable>
       ) : null}
     </Pressable>

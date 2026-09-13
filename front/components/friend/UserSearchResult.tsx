@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@/contexts/ThemeContext';
 import type { UserRespond } from '@/types';
 
 export type UserRelationStatus = 'none' | 'sent' | 'received' | 'friend';
@@ -28,27 +29,28 @@ export function UserSearchResult({
   onDeclineRequest,
   isLoading = false,
 }: UserSearchResultProps) {
+  const { colors, isDark } = useTheme();
   const initials = `${(user.name?.[0] || '').toUpperCase()}${(user.surname?.[0] || '').toUpperCase()}` || (user.username?.[0] || '?').toUpperCase();
   const fullName = [user.name, user.surname].filter(Boolean).join(' ') || user.username;
 
   return (
-    <View style={styles.card}>
-      <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{initials}</Text>
+    <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: isDark ? '#000000' : '#6C5CE7' }]}>
+      <View style={[styles.avatar, { backgroundColor: isDark ? colors.border : '#EDE8FF' }]}>
+        <Text style={[styles.avatarText, { color: colors.primary }]}>{initials}</Text>
       </View>
 
       <View style={styles.userInfo}>
-        <Text style={styles.fullName} numberOfLines={1}>
+        <Text style={[styles.fullName, { color: colors.text }]} numberOfLines={1}>
           {fullName}
         </Text>
-        <Text style={styles.username} numberOfLines={1}>
+        <Text style={[styles.username, { color: colors.textSecondary }]} numberOfLines={1}>
           @{user.username}
         </Text>
       </View>
 
       <View style={styles.actionContainer}>
         {isLoading ? (
-          <ActivityIndicator size="small" color="#6C5CE7" />
+          <ActivityIndicator size="small" color={colors.primary} />
         ) : status === 'none' ? (
           <Pressable
             style={({ pressed }) => [styles.addButton, pressed && styles.btnPressed]}
@@ -59,7 +61,11 @@ export function UserSearchResult({
           </Pressable>
         ) : status === 'sent' ? (
           <Pressable
-            style={({ pressed }) => [styles.sentBadge, pressed && styles.btnPressed]}
+            style={({ pressed }) => [
+              styles.sentBadge,
+              isDark && { backgroundColor: '#3D201A', borderColor: '#5C2D22' },
+              pressed && styles.btnPressed,
+            ]}
             onPress={() => {
               if (sentRequestId && onCancelRequest) {
                 onCancelRequest(sentRequestId);
@@ -94,9 +100,9 @@ export function UserSearchResult({
             </Pressable>
           </View>
         ) : (
-          <View style={styles.friendBadge}>
+          <View style={[styles.friendBadge, isDark && { backgroundColor: '#064E3B', borderColor: '#065F46' }]}>
             <Ionicons name="checkmark-circle" size={14} color="#00B894" />
-            <Text style={styles.friendBadgeText}>Friends</Text>
+            <Text style={[styles.friendBadgeText, isDark && { color: '#6EE7B7' }]}>Friends</Text>
           </View>
         )}
       </View>

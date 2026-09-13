@@ -87,6 +87,16 @@ Spring Boot runs on **localhost:8080** (default).
 | createdAt| Instant   | auto                                 |
 > Unique constraint on (sender_id, receiver_id). Cross-check prevents both A→B and B→A from existing simultaneously.
 
+### RefreshToken (`refresh_tokens`)
+| Field     | Type      | Constraints                          |
+|-----------|-----------|--------------------------------------|
+| id        | UUID      | PK, auto-generated                  |
+| token     | String    | unique, not null, indexed (len: 1024)|
+| user      | User (FK) | many-to-one, not null               |
+| expiresAt | Instant   | not null                             |
+| createdAt | Instant   | auto (CreationTimestamp)             |
+> Used for 30-day persistent session management, server-side revocation, and single-use rotation.
+
 ### FrequencyType (Enum)
 ```
 DAILY | WEEKLY | MONTHLY | CUSTOM
@@ -96,14 +106,17 @@ DAILY | WEEKLY | MONTHLY | CUSTOM
 
 ## Authentication
 
-- **Method**: JWT Bearer Token
+- **Method**: JWT Access Token + Database-backed Refresh Token
 - **Token Location**: `Authorization: Bearer <token>` header
 - **JWT Subject**: user's email
-- **Expiration**: 3,600,000 ms (1 hour)
-- **Signing**: HMAC-SHA with secret from `jwt.secret` property
+- **Access Token Expiration**: 900,000 ms (15 minutes)
+- **Refresh Token Expiration**: 2,592,000,000 ms (30 days)
+- **Signing**: HMAC-SHA with `jwt.secret` (access) and `jwt.refresh-secret` (refresh) loaded via `spring-dotenv` / environment
 - **User Identity**: `UserPrincipal` wraps `User` entity, implements `UserDetails`
 - **Lookup**: `CustomUserDetailsService` loads by email
-- **Public Endpoints**: `/api/auth/**` (login, register)
+- **Public Endpoints**: `/api/auth/**` (login, register, refresh, logout)
+- **Filter Bypass**: `JwtAuthFilter` bypasses `/api/auth/**` so expired access tokens do not block refresh or logout
+- **Silent Auto-Renewal**: Axios response interceptor in `client.ts` queues concurrent requests on 401, calls `/api/auth/refresh`, updates `SecureStore` (mobile) / `localStorage` (web), and replays requests transparently
 - **Protected**: All other `/api/**` endpoints require valid JWT
 - **Method Security**: `@PreAuthorize` on user-specific endpoints verifies `#id == principal.id`
 
@@ -115,16 +128,19 @@ DAILY | WEEKLY | MONTHLY | CUSTOM
 
 ### Auth — `/api/auth` (PUBLIC)
 
-| Method | Path              | Request Body                                                        | Response (200/201)                | Notes             |
-|--------|-------------------|---------------------------------------------------------------------|-----------------------------------|-------------------|
-| POST   | `/api/auth/login`    | `{ email, password }`                                              | `{ token, username }`             | 200 OK            |
-| POST   | `/api/auth/register` | `{ name, surname, email, password, username, timezone }`           | `{ token, username }`             | 201 Created       |
+| Method | Path                 | Request Body                                              | Response (200/201/204)                  | Notes                                    |
+|--------|----------------------|-----------------------------------------------------------|-----------------------------------------|------------------------------------------|
+| POST   | `/api/auth/login`    | `{ email, password }`                                     | `{ token, refreshToken, username }`     | 200 OK                                   |
+| POST   | `/api/auth/register` | `{ name, surname, email, password, username, timezone }`  | `{ token, refreshToken, username }`     | 201 Created                              |
+| POST   | `/api/auth/refresh`  | `{ refreshToken }`                                        | `{ token, refreshToken, username }`     | 200 OK (Rotates token & returns new pair)|
+| POST   | `/api/auth/logout`   | `{ refreshToken }`                                        | 204 No Content                          | Revokes refresh token in database        |
 
 **Validation**:
 - `email`: @NotBlank @Email
 - `password`: @NotBlank, @Size(min=8) for register
 - `username`: @NotBlank @Size(min=4, max=10) for register
 - `name`, `surname`, `timezone`: @NotBlank for register
+- `refreshToken`: @NotBlank for refresh
 
 ---
 
@@ -420,7 +436,6 @@ When a user checks in a habit, it automatically appears in their friends' Feed t
 
 - Most common & trending habits list in Discover tab (habit suggestions/templates)
 - `isPublic` boolean column on `habits` table (public/private toggle per habit)
-- Token refresh mechanism (current JWT is 1h, persistent login needs longer sessions or refresh tokens)
 - Push notifications (daily reminders, friend activity)
 - Pagination on user list, feed, check-in history
 - Profile picture upload
@@ -443,11 +458,19 @@ front/
 │   │   ├── feed.tsx              → Friends' activity feed
 │   │   ├── discover.tsx          → Search/add friends & manage requests (Segmented)
 │   │   ├── index.tsx             → Habits list (center tab)
-│   │   ├── profile.tsx           → User profile & stats (with Friend list trigger)
-│   │   └── settings.tsx          → Account settings
-│   └── habit/
-│       ├── [id].tsx              → Habit detail + history
-│       └── create.tsx            → Create new habit
+│   │   ├── profile.tsx           → User profile & stats (with Habit Streaks & Friend list modals)
+│   │   └── settings.tsx          → Account settings (Dark mode toggle, Email verification)
+│   ├── habit/
+│   │   ├── [id].tsx              → Habit detail + history
+│   │   └── create.tsx            → Create new habit
+│   └── settings/
+│       ├── _layout.tsx           → Settings stack layout with animated back button
+│       ├── edit-profile.tsx      → Edit profile information
+│       ├── change-password.tsx   → Change user password
+│       ├── notifications.tsx     → Notification preferences
+│       ├── timezone.tsx          → Searchable timezone selector
+│       ├── terms.tsx             → Terms of service
+│       └── privacy.tsx           → Privacy policy
 ├── api/                          → HTTP layer (DONE ✅)
 ├── types/                        → TypeScript interfaces (DONE ✅)
 ├── hooks/                        → React Query hooks (DONE ✅)
@@ -459,13 +482,14 @@ front/
 │   ├── useFriendRequests.ts
 │   └── useUsers.ts
 ├── components/
-│   ├── ui/                       → Design system (Button, Input, Card)
+│   ├── ui/                       → Design system (Button, Input, Card) (DONE ✅)
 │   ├── habit/                    → HabitCard, HabitList, StreakCounter, HabitStreakCard (DONE ✅)
 │   ├── feed/                     → FeedItem, FeedSummaryBanner (DONE ✅)
 │   ├── friend/                   → FriendCard, UserSearchResult, FriendRequestCard (DONE ✅)
 │   └── common/                   → LoadingScreen, EmptyState, ErrorBoundary
 ├── contexts/
 │   ├── AuthContext.tsx            → Auth state (token, user, isLoggedIn)
+│   ├── ThemeContext.tsx           → Theme state (light, dark, system, colors)
 │   └── QueryProvider.tsx          → TanStack React Query provider
 ├── constants/
 │   ├── Colors.ts                  → Color palette

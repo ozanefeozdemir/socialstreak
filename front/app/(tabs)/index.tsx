@@ -11,6 +11,7 @@ import {
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown, FadeInUp, BounceIn } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@/contexts/ThemeContext';
 
 import { HabitCard } from '@/components/habit/HabitCard';
 import { useHabits } from '@/hooks/useHabits';
@@ -86,6 +87,7 @@ function calculateStreak(checkIns: CheckInRespond[], todayStr: string): number {
 
 export default function HabitsScreen() {
   const router = useRouter();
+  const { colors, isDark } = useTheme();
   const { data: habits, isLoading, refetch, isRefetching } = useHabits();
   const { data: checkInMap } = useTodayCheckIns(habits);
   const checkInMutation = useCheckIn();
@@ -126,7 +128,7 @@ export default function HabitsScreen() {
   }, [checkInMap, handleCheckIn, handleHabitPress, checkingIn]);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Background blobs */}
       <View style={styles.blobTopRight} />
       <View style={styles.blobBottomLeft} />
@@ -135,10 +137,10 @@ export default function HabitsScreen() {
       <Animated.View entering={FadeInUp.duration(500)} style={styles.header}>
         <View>
           <View style={styles.headerRow}>
-            <Text style={styles.greeting}>My Habits</Text>
+            <Text style={[styles.greeting, { color: colors.text }]}>My Habits</Text>
             <Ionicons name="sparkles" size={24} color="#6C5CE7" />
           </View>
-          <Text style={styles.subGreeting}>
+          <Text style={[styles.subGreeting, { color: colors.textSecondary }]}>
             {totalActive > 0
               ? `${completedToday}/${totalActive} done today`
               : 'Start building your streak!'}
@@ -156,7 +158,7 @@ export default function HabitsScreen() {
       {/* Progress bar */}
       {totalActive > 0 ? (
         <Animated.View entering={FadeInDown.duration(500).delay(100)} style={styles.progressBarContainer}>
-          <View style={styles.progressBarTrack}>
+          <View style={[styles.progressBarTrack, { backgroundColor: isDark ? colors.border : '#E8E5F7' }]}>
             <Animated.View
               style={[
                 styles.progressBarFill,
@@ -178,7 +180,7 @@ export default function HabitsScreen() {
           <View style={styles.emptyBubble}>
             <Ionicons name="leaf" size={36} color="#27AE60" />
           </View>
-          <Text style={styles.emptyTitle}>No habits yet!</Text>
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>No habits yet!</Text>
           <Text style={styles.emptySubtitle}>
             Tap the button below to start{'\n'}your first streak
           </Text>

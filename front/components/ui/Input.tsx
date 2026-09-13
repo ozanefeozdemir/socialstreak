@@ -1,4 +1,5 @@
 import { View, Text, TextInput, StyleSheet, TextInputProps } from 'react-native';
+import { useTheme } from '@/contexts/ThemeContext';
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -7,14 +8,25 @@ interface InputProps extends TextInputProps {
 }
 
 export function Input({ label, error, icon, style, ...props }: InputProps) {
+  const { colors, isDark } = useTheme();
+
   return (
     <View style={styles.wrapper}>
-      {label ? <Text style={styles.label}>{label}</Text> : null}
-      <View style={[styles.inputRow, error ? styles.inputRowError : undefined]}>
+      {label ? <Text style={[styles.label, { color: colors.textSecondary }]}>{label}</Text> : null}
+      <View
+        style={[
+          styles.inputRow,
+          {
+            backgroundColor: isDark ? colors.card : '#F8F8FE',
+            borderColor: error ? '#FFB8B8' : colors.border,
+          },
+          error && (isDark ? { backgroundColor: '#3A1C1C', borderColor: '#772525' } : styles.inputRowError),
+        ]}
+      >
         {icon ? <Text style={styles.icon}>{icon}</Text> : null}
         <TextInput
-          style={[styles.input, style]}
-          placeholderTextColor="#B8B8D0"
+          style={[styles.input, { color: colors.text }, style]}
+          placeholderTextColor={colors.textSecondary}
           {...props}
         />
       </View>

@@ -15,6 +15,7 @@ import Animated, { FadeInDown, FadeInUp, BounceIn } from 'react-native-reanimate
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useFriends, useRemoveFriend } from '@/hooks/useFriends';
 import { useHabits, useHabitsStreakStats } from '@/hooks/useHabits';
 import { FriendCard } from '@/components/friend/FriendCard';
@@ -42,14 +43,16 @@ function StatCard({
   onPress,
   isInteractive,
 }: StatCardProps) {
+  const { colors } = useTheme();
+
   const content = (
     <View style={styles.statCardInner}>
       <View style={[styles.statIconBg, { backgroundColor: bgColor }]}>
         <Ionicons name={icon} size={20} color={color} />
       </View>
-      <Text style={styles.statValue}>{value}</Text>
+      <Text style={[styles.statValue, { color: colors.text }]}>{value}</Text>
       <View style={styles.statLabelRow}>
-        <Text style={styles.statLabel}>{label}</Text>
+        <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{label}</Text>
         {isInteractive ? (
           <Ionicons name="chevron-forward" size={12} color="#6C5CE7" style={styles.statChevron} />
         ) : null}
@@ -62,8 +65,9 @@ function StatCard({
       <Pressable
         style={({ pressed }) => [
           styles.statCard,
-          styles.statCardInteractive,
-          pressed ? styles.statCardPressed : undefined,
+          { backgroundColor: colors.card, borderColor: colors.border },
+          isInteractive && { borderColor: colors.primary + '30', backgroundColor: colors.primary + '05' },
+          pressed ? { backgroundColor: colors.primary + '15' } : undefined,
         ]}
         onPress={onPress}
       >
@@ -72,12 +76,13 @@ function StatCard({
     );
   }
 
-  return <View style={styles.statCard}>{content}</View>;
+  return <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>{content}</View>;
 }
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { user: currentUser, logout } = useAuth();
+  const { colors, isDark } = useTheme();
 
   // Modals state
   const [isFriendsModalVisible, setIsFriendsModalVisible] = useState(false);
@@ -218,7 +223,7 @@ export default function ProfileScreen() {
   const totalCheckInsValue = isStatsLoading ? '-' : streakStats?.totalCheckIns ?? 0;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Background blobs */}
       <View style={styles.blobTopRight} />
       <View style={styles.blobBottomLeft} />
@@ -233,24 +238,24 @@ export default function ProfileScreen() {
         {/* Header */}
         <Animated.View entering={FadeInUp.duration(500)} style={styles.header}>
           <View style={styles.headerRow}>
-            <Text style={styles.title}>Profile</Text>
+            <Text style={[styles.title, { color: colors.text }]}>Profile</Text>
             <Ionicons name="person-circle" size={26} color="#6C5CE7" />
           </View>
-          <Text style={styles.subtitle}>Your stats, streaks and account</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Your stats, streaks and account</Text>
         </Animated.View>
 
         {/* User Avatar & Info */}
         <Animated.View entering={BounceIn.duration(800).delay(100)} style={styles.avatarContainer}>
-          <View style={styles.avatar}>
+          <View style={[styles.avatar, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Text style={styles.avatarText}>{initials}</Text>
           </View>
-          <Text style={styles.fullNameText}>{displayName}</Text>
+          <Text style={[styles.fullNameText, { color: colors.text }]}>{displayName}</Text>
           <View style={styles.badgeRow}>
             <Text style={styles.username}>{displayUsername}</Text>
             {currentUser?.timezone ? (
-              <View style={styles.timezoneBadge}>
-                <Ionicons name="globe-outline" size={12} color="#8B8BA0" />
-                <Text style={styles.timezoneText}>{currentUser.timezone}</Text>
+              <View style={[styles.timezoneBadge, { backgroundColor: isDark ? colors.border : '#E8E5F7' }]}>
+                <Ionicons name="globe-outline" size={12} color={colors.textSecondary} />
+                <Text style={[styles.timezoneText, { color: colors.textSecondary }]}>{currentUser.timezone}</Text>
               </View>
             ) : null}
           </View>
@@ -299,38 +304,38 @@ export default function ProfileScreen() {
         {/* Account Details Section */}
         <Animated.View entering={FadeInDown.springify().damping(18).delay(300)} style={styles.section}>
           <Text style={styles.sectionTitle}>ACCOUNT DETAILS</Text>
-          <View style={styles.accountCard}>
+          <View style={[styles.accountCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <View style={styles.accountRow}>
               <View style={styles.accountIconBg}>
                 <Ionicons name="mail-outline" size={18} color="#6C5CE7" />
               </View>
               <View style={styles.accountInfo}>
-                <Text style={styles.accountLabel}>Email</Text>
-                <Text style={styles.accountValue}>{currentUser?.email || '—'}</Text>
+                <Text style={[styles.accountLabel, { color: colors.textSecondary }]}>Email</Text>
+                <Text style={[styles.accountValue, { color: colors.text }]}>{currentUser?.email || '—'}</Text>
               </View>
             </View>
 
-            <View style={styles.accountDivider} />
+            <View style={[styles.accountDivider, { backgroundColor: colors.border }]} />
 
             <View style={styles.accountRow}>
               <View style={styles.accountIconBg}>
                 <Ionicons name="at-outline" size={18} color="#6C5CE7" />
               </View>
               <View style={styles.accountInfo}>
-                <Text style={styles.accountLabel}>Username</Text>
-                <Text style={styles.accountValue}>{displayUsername}</Text>
+                <Text style={[styles.accountLabel, { color: colors.textSecondary }]}>Username</Text>
+                <Text style={[styles.accountValue, { color: colors.text }]}>{displayUsername}</Text>
               </View>
             </View>
 
-            <View style={styles.accountDivider} />
+            <View style={[styles.accountDivider, { backgroundColor: colors.border }]} />
 
             <View style={styles.accountRow}>
               <View style={styles.accountIconBg}>
                 <Ionicons name="time-outline" size={18} color="#6C5CE7" />
               </View>
               <View style={styles.accountInfo}>
-                <Text style={styles.accountLabel}>Timezone</Text>
-                <Text style={styles.accountValue}>{currentUser?.timezone || 'Default'}</Text>
+                <Text style={[styles.accountLabel, { color: colors.textSecondary }]}>Timezone</Text>
+                <Text style={[styles.accountValue, { color: colors.text }]}>{currentUser?.timezone || 'Default'}</Text>
               </View>
             </View>
           </View>
@@ -339,39 +344,48 @@ export default function ProfileScreen() {
         {/* Quick Actions & Logout */}
         <Animated.View entering={FadeInDown.springify().damping(18).delay(400)} style={styles.section}>
           <Text style={styles.sectionTitle}>SETTINGS</Text>
-          <View style={styles.settingsCard}>
+          <View style={[styles.settingsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Pressable
-              style={({ pressed }) => [styles.settingsRow, pressed && styles.rowPressed]}
+              style={({ pressed }) => [
+                styles.settingsRow,
+                pressed && { backgroundColor: isDark ? colors.border : '#FAF9FF' }
+              ]}
               onPress={() => setIsStreaksModalVisible(true)}
             >
               <View style={styles.settingsLeft}>
-                <View style={[styles.settingsIconBg, { backgroundColor: '#FFEFEA' }]}>
+                <View style={[styles.settingsIconBg, { backgroundColor: isDark ? '#4A332C' : '#FFEFEA' }]}>
                   <Ionicons name="flame" size={18} color="#E17055" />
                 </View>
-                <Text style={styles.settingsText}>View Habit Streaks</Text>
+                <Text style={[styles.settingsText, { color: colors.text }]}>View Habit Streaks</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#A0A0B5" />
+              <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
             </Pressable>
 
-            <View style={styles.accountDivider} />
+            <View style={[styles.accountDivider, { backgroundColor: colors.border }]} />
 
             <Pressable
-              style={({ pressed }) => [styles.settingsRow, pressed && styles.rowPressed]}
+              style={({ pressed }) => [
+                styles.settingsRow,
+                pressed && { backgroundColor: isDark ? colors.border : '#FAF9FF' }
+              ]}
               onPress={() => setIsFriendsModalVisible(true)}
             >
               <View style={styles.settingsLeft}>
-                <View style={[styles.settingsIconBg, { backgroundColor: '#EDE8FF' }]}>
+                <View style={[styles.settingsIconBg, { backgroundColor: isDark ? '#3A2E5D' : '#EDE8FF' }]}>
                   <Ionicons name="people" size={18} color="#6C5CE7" />
                 </View>
-                <Text style={styles.settingsText}>Manage Friends</Text>
+                <Text style={[styles.settingsText, { color: colors.text }]}>Manage Friends</Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color="#A0A0B5" />
+              <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
             </Pressable>
 
-            <View style={styles.accountDivider} />
+            <View style={[styles.accountDivider, { backgroundColor: colors.border }]} />
 
             <Pressable
-              style={({ pressed }) => [styles.settingsRow, pressed && styles.rowPressed]}
+              style={({ pressed }) => [
+                styles.settingsRow,
+                pressed && { backgroundColor: isDark ? '#3A1C1C' : '#FFF0F0' }
+              ]}
               onPress={handleLogout}
             >
               <View style={styles.settingsLeft}>
@@ -395,11 +409,27 @@ export default function ProfileScreen() {
         presentationStyle="pageSheet"
         onRequestClose={() => setIsStreaksModalVisible(false)}
       >
-        <View style={styles.modalContainer}>
+        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+          {/* Back button */}
+          <View style={styles.modalBackWrapper}>
+            <Animated.View entering={FadeInUp.duration(400)}>
+              <Pressable
+                style={styles.backButton}
+                onPress={() => {
+                  setIsStreaksModalVisible(false);
+                  setStreakSearchQuery('');
+                }}
+              >
+                <Ionicons name="chevron-back" size={24} color={colors.primary} />
+                <Text style={[styles.backText, { color: colors.primary }]}>Back</Text>
+              </Pressable>
+            </Animated.View>
+          </View>
+
           {/* Modal Header */}
           <View style={styles.modalHeader}>
             <View style={styles.modalTitleRow}>
-              <Text style={styles.modalTitle}>Habit Streaks</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Habit Streaks</Text>
               <View style={[styles.modalCountBadge, { backgroundColor: '#E17055' }]}>
                 <Text style={styles.modalCountText}>{activeHabits.length}</Text>
               </View>
@@ -416,25 +446,16 @@ export default function ProfileScreen() {
                 <Ionicons name="add" size={18} color="#FFFFFF" />
                 <Text style={styles.modalAddBtnText}>New</Text>
               </Pressable>
-              <Pressable
-                style={({ pressed }) => [styles.modalCloseBtn, pressed && styles.btnPressed]}
-                onPress={() => {
-                  setIsStreaksModalVisible(false);
-                  setStreakSearchQuery('');
-                }}
-              >
-                <Ionicons name="close" size={20} color="#2D2D3A" />
-              </Pressable>
             </View>
           </View>
 
           {/* Search Box */}
-          <View style={styles.searchContainer}>
-            <Ionicons name="search" size={18} color="#8B8BA0" style={styles.searchIcon} />
+          <View style={[styles.searchContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Ionicons name="search" size={18} color={colors.textSecondary} style={styles.searchIcon} />
             <TextInput
-              style={styles.searchInput}
+              style={[styles.searchInput, { color: colors.text }]}
               placeholder="Search habits..."
-              placeholderTextColor="#A0A0B5"
+              placeholderTextColor={colors.textSecondary}
               value={streakSearchQuery}
               onChangeText={setStreakSearchQuery}
               autoCapitalize="none"
@@ -443,7 +464,7 @@ export default function ProfileScreen() {
             />
             {streakSearchQuery.length > 0 ? (
               <Pressable onPress={() => setStreakSearchQuery('')}>
-                <Ionicons name="close-circle" size={18} color="#A0A0B5" />
+                <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
               </Pressable>
             ) : null}
           </View>
@@ -459,17 +480,17 @@ export default function ProfileScreen() {
               </View>
             ) : filteredHabits.length === 0 ? (
               <View style={styles.emptyModalSearch}>
-                <View style={[styles.emptySearchIconBg, { backgroundColor: '#FFEFEA' }]}>
+                <View style={[styles.emptySearchIconBg, { backgroundColor: isDark ? colors.border : '#FFEFEA' }]}>
                   <Ionicons
                     name={streakSearchQuery ? 'search-outline' : 'flame-outline'}
                     size={36}
                     color="#E17055"
                   />
                 </View>
-                <Text style={styles.emptySearchTitle}>
+                <Text style={[styles.emptySearchTitle, { color: colors.text }]}>
                   {streakSearchQuery ? 'No matching habits' : 'No habits created yet'}
                 </Text>
-                <Text style={styles.emptySearchSubtitle}>
+                <Text style={[styles.emptySearchSubtitle, { color: colors.textSecondary }]}>
                   {streakSearchQuery
                     ? `No habits matched "${streakSearchQuery}"`
                     : 'Start creating habits and building your daily streaks!'}
@@ -511,11 +532,27 @@ export default function ProfileScreen() {
         presentationStyle="pageSheet"
         onRequestClose={() => setIsFriendsModalVisible(false)}
       >
-        <View style={styles.modalContainer}>
+        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+          {/* Back button */}
+          <View style={styles.modalBackWrapper}>
+            <Animated.View entering={FadeInUp.duration(400)}>
+              <Pressable
+                style={styles.backButton}
+                onPress={() => {
+                  setIsFriendsModalVisible(false);
+                  setFriendSearchQuery('');
+                }}
+              >
+                <Ionicons name="chevron-back" size={24} color={colors.primary} />
+                <Text style={[styles.backText, { color: colors.primary }]}>Back</Text>
+              </Pressable>
+            </Animated.View>
+          </View>
+
           {/* Modal Header */}
           <View style={styles.modalHeader}>
             <View style={styles.modalTitleRow}>
-              <Text style={styles.modalTitle}>Friends</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Friends</Text>
               <View style={styles.modalCountBadge}>
                 <Text style={styles.modalCountText}>{friends.length}</Text>
               </View>
@@ -528,25 +565,16 @@ export default function ProfileScreen() {
                 <Ionicons name="person-add" size={16} color="#FFFFFF" />
                 <Text style={styles.modalAddBtnText}>Add</Text>
               </Pressable>
-              <Pressable
-                style={({ pressed }) => [styles.modalCloseBtn, pressed && styles.btnPressed]}
-                onPress={() => {
-                  setIsFriendsModalVisible(false);
-                  setFriendSearchQuery('');
-                }}
-              >
-                <Ionicons name="close" size={20} color="#2D2D3A" />
-              </Pressable>
             </View>
           </View>
 
           {/* Search Box */}
-          <View style={styles.searchContainer}>
-            <Ionicons name="search" size={18} color="#8B8BA0" style={styles.searchIcon} />
+          <View style={[styles.searchContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Ionicons name="search" size={18} color={colors.textSecondary} style={styles.searchIcon} />
             <TextInput
-              style={styles.searchInput}
+              style={[styles.searchInput, { color: colors.text }]}
               placeholder="Search by name or username..."
-              placeholderTextColor="#A0A0B5"
+              placeholderTextColor={colors.textSecondary}
               value={friendSearchQuery}
               onChangeText={setFriendSearchQuery}
               autoCapitalize="none"
@@ -555,7 +583,7 @@ export default function ProfileScreen() {
             />
             {friendSearchQuery.length > 0 ? (
               <Pressable onPress={() => setFriendSearchQuery('')}>
-                <Ionicons name="close-circle" size={18} color="#A0A0B5" />
+                <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
               </Pressable>
             ) : null}
           </View>
@@ -571,17 +599,17 @@ export default function ProfileScreen() {
               </View>
             ) : filteredFriends.length === 0 ? (
               <View style={styles.emptyModalSearch}>
-                <View style={styles.emptySearchIconBg}>
+                <View style={[styles.emptySearchIconBg, { backgroundColor: isDark ? colors.border : '#EDE8FF' }]}>
                   <Ionicons
                     name={friendSearchQuery ? 'search-outline' : 'people-outline'}
                     size={36}
                     color="#6C5CE7"
                   />
                 </View>
-                <Text style={styles.emptySearchTitle}>
+                <Text style={[styles.emptySearchTitle, { color: colors.text }]}>
                   {friendSearchQuery ? 'No matching friends found' : 'No friends yet'}
                 </Text>
-                <Text style={styles.emptySearchSubtitle}>
+                <Text style={[styles.emptySearchSubtitle, { color: colors.textSecondary }]}>
                   {friendSearchQuery
                     ? `No friends matched "${friendSearchQuery}"`
                     : 'Search and connect with friends on the Discover page.'}
@@ -913,6 +941,24 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F2F0FF',
     paddingTop: 16,
+  },
+  modalBackWrapper: {
+    paddingHorizontal: 20,
+    paddingTop: 4,
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingVertical: 10,
+    paddingRight: 16,
+    marginBottom: 12,
+    gap: 4,
+  },
+  backText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6C5CE7',
   },
   modalHeader: {
     flexDirection: 'row',

@@ -13,6 +13,7 @@ import {
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useUsers } from '@/hooks/useUsers';
 import {
   useSentFriendRequests,
@@ -32,6 +33,7 @@ export default function DiscoverScreen() {
   const [searchQuery, setSearchQuery] = useState('');
 
   const { user: currentUser } = useAuth();
+  const { colors, isDark } = useTheme();
 
   // Queries
   const {
@@ -148,7 +150,7 @@ export default function DiscoverScreen() {
   const pendingReceivedCount = receivedRequests.length;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Background decoration blobs */}
       <View style={styles.blobTopLeft} />
       <View style={styles.blobBottomRight} />
@@ -156,17 +158,20 @@ export default function DiscoverScreen() {
       {/* Header */}
       <Animated.View entering={FadeInUp.duration(500)} style={styles.header}>
         <View style={styles.headerRow}>
-          <Text style={styles.title}>Discover</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Discover</Text>
           <Ionicons name="compass" size={26} color="#6C5CE7" />
         </View>
-        <Text style={styles.subtitle}>Connect with friends & explore habits</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Connect with friends & explore habits</Text>
       </Animated.View>
 
       {/* Segmented Pill Control */}
       <Animated.View entering={FadeInDown.springify().damping(18).delay(100)} style={styles.segmentedContainer}>
-        <View style={styles.segmentedControl}>
+        <View style={[styles.segmentedControl, { backgroundColor: isDark ? colors.border : '#EAE6FA' }]}>
           <Pressable
-            style={[styles.segmentBtn, activeTab === 'find' && styles.segmentBtnActive]}
+            style={[
+              styles.segmentBtn, 
+              activeTab === 'find' && [styles.segmentBtnActive, { backgroundColor: colors.card, shadowColor: isDark ? '#000' : '#6C5CE7' }]
+            ]}
             onPress={() => setActiveTab('find')}
           >
             <Ionicons
@@ -180,7 +185,10 @@ export default function DiscoverScreen() {
           </Pressable>
 
           <Pressable
-            style={[styles.segmentBtn, activeTab === 'requests' && styles.segmentBtnActive]}
+            style={[
+              styles.segmentBtn, 
+              activeTab === 'requests' && [styles.segmentBtnActive, { backgroundColor: colors.card, shadowColor: isDark ? '#000' : '#6C5CE7' }]
+            ]}
             onPress={() => setActiveTab('requests')}
           >
             <Ionicons
@@ -207,12 +215,12 @@ export default function DiscoverScreen() {
         <View style={styles.tabContent}>
           {/* Search bar */}
           <View style={styles.searchBoxWrapper}>
-            <View style={styles.searchBar}>
-              <Ionicons name="search" size={18} color="#8B8BA0" />
+            <View style={[styles.searchBar, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: isDark ? '#000' : '#6C5CE7' }]}>
+              <Ionicons name="search" size={18} color={colors.textSecondary} />
               <TextInput
-                style={styles.searchInput}
+                style={[styles.searchInput, { color: colors.text }]}
                 placeholder="Search by name or @username..."
-                placeholderTextColor="#B8B8D0"
+                placeholderTextColor={colors.textSecondary}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
                 autoCapitalize="none"
@@ -245,19 +253,19 @@ export default function DiscoverScreen() {
                 <View style={styles.mascotBubble}>
                   <Ionicons name="people" size={38} color="#27AE60" />
                 </View>
-                <Text style={styles.emptyTitle}>Find your streak crew</Text>
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>Find your streak crew</Text>
                 <Text style={styles.emptySubtitle}>
                   Search for your friends by username to cheer each other on and maintain daily streaks together!
                 </Text>
 
                 {/* Coming Soon: Popular Habits Preview Card */}
-                <View style={styles.teaserCard}>
+                <View style={[styles.teaserCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                   <View style={styles.teaserHeader}>
-                    <View style={styles.teaserIconWrapper}>
+                    <View style={[styles.teaserIconWrapper, { backgroundColor: isDark ? '#4A332C' : '#FFF2EE' }]}>
                       <Ionicons name="flame" size={20} color="#E17055" />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.teaserTitle}>Trending Habits</Text>
+                      <Text style={[styles.teaserTitle, { color: colors.text }]}>Trending Habits</Text>
                       <Text style={styles.teaserBadge}>COMING SOON</Text>
                     </View>
                   </View>
@@ -330,11 +338,11 @@ export default function DiscoverScreen() {
             </View>
           ) : receivedRequests.length === 0 && sentRequests.length === 0 ? (
             <View style={styles.emptyRequestsContainer}>
-              <View style={styles.requestsBubble}>
-                <Ionicons name="mail-open-outline" size={36} color="#6C5CE7" />
+              <View style={[styles.requestsBubble, isDark && { backgroundColor: colors.border }]}>
+                <Ionicons name="mail-open-outline" size={36} color={colors.primary} />
               </View>
-              <Text style={styles.emptyTitle}>No pending requests</Text>
-              <Text style={styles.emptySubtitle}>
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>No pending requests</Text>
+              <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
                 You have no incoming or outgoing friend invites right now. Head over to &quot;Find Friends&quot; to connect!
               </Text>
             </View>
@@ -342,15 +350,15 @@ export default function DiscoverScreen() {
             <View>
               {/* Received Requests Section */}
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionTitle}>RECEIVED REQUESTS</Text>
+                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>RECEIVED REQUESTS</Text>
                 <View style={styles.countPill}>
                   <Text style={styles.countPillText}>{receivedRequests.length}</Text>
                 </View>
               </View>
 
               {receivedRequests.length === 0 ? (
-                <View style={styles.emptySectionCard}>
-                  <Text style={styles.emptySectionText}>No received requests right now</Text>
+                <View style={[styles.emptySectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <Text style={[styles.emptySectionText, { color: colors.textSecondary }]}>No received requests right now</Text>
                 </View>
               ) : (
                 receivedRequests.map((req) => (
@@ -370,15 +378,15 @@ export default function DiscoverScreen() {
 
               {/* Sent Requests Section */}
               <View style={[styles.sectionHeaderRow, { marginTop: 24 }]}>
-                <Text style={styles.sectionTitle}>SENT REQUESTS</Text>
+                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>SENT REQUESTS</Text>
                 <View style={styles.countPill}>
                   <Text style={styles.countPillText}>{sentRequests.length}</Text>
                 </View>
               </View>
 
               {sentRequests.length === 0 ? (
-                <View style={styles.emptySectionCard}>
-                  <Text style={styles.emptySectionText}>No sent requests waiting for response</Text>
+                <View style={[styles.emptySectionCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <Text style={[styles.emptySectionText, { color: colors.textSecondary }]}>No sent requests waiting for response</Text>
                 </View>
               ) : (
                 sentRequests.map((req) => (

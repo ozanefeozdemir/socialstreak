@@ -8,6 +8,7 @@ import Animated, {
   withSequence,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@/contexts/ThemeContext';
 import type { FeedItemRespond } from '@/types';
 import { formatTimestamp } from '@/utils/dates';
 
@@ -33,6 +34,7 @@ interface FeedItemProps {
 }
 
 export function FeedItem({ item, index }: FeedItemProps) {
+  const { colors, isDark } = useTheme();
   const [cheered, setCheered] = useState(false);
   const [cheerCount, setCheerCount] = useState(0);
 
@@ -78,34 +80,34 @@ export function FeedItem({ item, index }: FeedItemProps) {
 
   return (
     <Animated.View entering={FadeInDown.duration(450).delay(index * 60)} style={styles.container}>
-      <View style={styles.card}>
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: isDark ? '#000000' : '#6C5CE7' }]}>
         {/* Header: Avatar, Name, Time */}
         <View style={styles.header}>
-          <View style={[styles.avatar, { backgroundColor: avatarTheme.bg, borderColor: avatarTheme.border }]}>
-            <Text style={[styles.avatarText, { color: avatarTheme.text }]}>{initials}</Text>
+          <View style={[styles.avatar, { backgroundColor: isDark ? colors.border : avatarTheme.bg, borderColor: isDark ? colors.border : avatarTheme.border }]}>
+            <Text style={[styles.avatarText, { color: isDark ? colors.primary : avatarTheme.text }]}>{initials}</Text>
           </View>
 
           <View style={styles.headerInfo}>
             <View style={styles.nameRow}>
-              <Text style={styles.fullName} numberOfLines={1}>
+              <Text style={[styles.fullName, { color: colors.text }]} numberOfLines={1}>
                 {fullName}
               </Text>
-              <Text style={styles.dot}>•</Text>
-              <Text style={styles.timeAgo}>{timeAgo}</Text>
+              <Text style={[styles.dot, { color: colors.textSecondary }]}>•</Text>
+              <Text style={[styles.timeAgo, { color: colors.textSecondary }]}>{timeAgo}</Text>
             </View>
-            <Text style={styles.username}>@{user.username}</Text>
+            <Text style={[styles.username, { color: colors.textSecondary }]}>@{user.username}</Text>
           </View>
         </View>
 
         {/* Habit Card Body */}
-        <View style={styles.habitContainer}>
+        <View style={[styles.habitContainer, { backgroundColor: isDark ? colors.background : '#F9F8FE', borderColor: colors.border }]}>
           <View style={styles.habitMain}>
-            <View style={styles.checkIconWrap}>
+            <View style={[styles.checkIconWrap, isDark && { backgroundColor: '#064E3B' }]}>
               <Ionicons name="checkmark-circle" size={24} color="#00B894" />
             </View>
             <View style={styles.habitInfo}>
-              <Text style={styles.actionPrompt}>Completed habit</Text>
-              <Text style={styles.habitName} numberOfLines={1}>
+              <Text style={[styles.actionPrompt, { color: colors.textSecondary }]}>Completed habit</Text>
+              <Text style={[styles.habitName, { color: colors.text }]} numberOfLines={1}>
                 {habit.name}
               </Text>
             </View>
@@ -113,12 +115,12 @@ export function FeedItem({ item, index }: FeedItemProps) {
 
           {/* Tags row: Frequency & Streak */}
           <View style={styles.tagsRow}>
-            <View style={[styles.tag, { backgroundColor: freqTheme.bg }]}>
+            <View style={[styles.tag, { backgroundColor: isDark ? freqTheme.text + '22' : freqTheme.bg }]}>
               <Ionicons name="repeat" size={12} color={freqTheme.text} />
               <Text style={[styles.tagText, { color: freqTheme.text }]}>{habit.frequencyType}</Text>
             </View>
 
-            <View style={styles.streakBadge}>
+            <View style={[styles.streakBadge, isDark && { backgroundColor: '#3D201A', borderColor: '#5C2D22' }]}>
               <Ionicons name="flame" size={14} color="#E17055" />
               <Text style={styles.streakText}>
                 {streak > 1 ? `${streak} day streak` : '1st check-in'}
@@ -133,6 +135,7 @@ export function FeedItem({ item, index }: FeedItemProps) {
             onPress={handleCheer}
             style={({ pressed }) => [
               styles.cheerButton,
+              isDark && !cheered && { backgroundColor: '#3D1F24', borderColor: '#5C2A32' },
               cheered ? styles.cheerButtonActive : undefined,
               pressed ? styles.cheerButtonPressed : undefined,
             ]}

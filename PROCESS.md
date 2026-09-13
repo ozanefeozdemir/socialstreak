@@ -222,6 +222,42 @@
   - Backend tests: `./gradlew test` passed with full unit test coverage in `AuthServiceTest`.
   - Frontend type check: `npx tsc --noEmit` passed with 0 errors.
 
+### What's next
+- [ ] Habit Type & Custom Metadata: Implement specialized fields per habit type (Book: page tracking, Running: distance/time, etc.)
+- [ ] Add subtle timer (e.g., "3 hours left") on habit cards with green-to-red colorization
+- [ ] Profile inspection when tapping on friends in feed or profile
+- [x] Settings screen polish
+
+---
+
+## Session 9 — 2026-09-13 (Settings Subsections, App-Wide Dark Mode & Profile Subsections UX)
+
+### What was done
+- ✅ **Settings Screen & Subsections**:
+  - Implemented complete settings sub-screens under `app/settings/`:
+    - `edit-profile.tsx` — Editable username, email, and timezone connected to `usersApi.update()` and `AuthContext`.
+    - `change-password.tsx` — Form for current password, new password, and confirmation with client validation connected to `usersApi.changePassword()`.
+    - `notifications.tsx` — Switch toggles for push and email alerts.
+    - `timezone.tsx` — Searchable list of global timezones.
+    - `terms.tsx` & `privacy.tsx` — Comprehensive terms of service and privacy policy documents.
+  - Implemented custom `_layout.tsx` for `app/settings/` with custom animated back button and `headerBackVisible: false`.
+  - Added Email verification badge with caution alert; fixed runtime crash by statically importing `Alert`.
+- ✅ **Theme System & App-Wide Dark Mode**:
+  - Built persistent `ThemeContext` supporting `light`, `dark`, and `system` preferences saved in `SecureStore`.
+  - Added theme toggle in Settings.
+  - Adapted root layout with theme-aware `StatusBar` (`light`/`dark`) and root `contentStyle: { backgroundColor: colors.background }` preventing white flashes.
+  - Fully themed all components without corrupting light mode aesthetics:
+    - `Input.tsx`: Dynamic inputs, labels, and borders.
+    - `HabitCard.tsx` & `HabitStreakCard.tsx`: Dark card surfaces, streak badges, and status indicators.
+    - `FriendCard.tsx`, `UserSearchResult.tsx`, `FriendRequestCard.tsx`: Themed avatars, borders, and action badges.
+    - `FeedItem.tsx` & `FeedSummaryBanner.tsx`: Themed feed cards, inner habit blocks, and cheer buttons.
+    - `app/habit/[id].tsx` & `app/habit/create.tsx`: Themed headers, frequency chips, and stat cards.
+    - `app/(tabs)/profile.tsx`, `feed.tsx`, `discover.tsx`, `index.tsx`: Modals, segmented controls, search bars, and progress tracks.
+- ✅ **Profile Subsections Back Navigation**:
+  - Replaced circular close buttons in Habit Streaks and Friends modals with the exact animated back button component from `habit/[id].tsx` (`chevron-back` + "Back" label + `FadeInUp` animation).
+- ✅ **Verification**:
+  - Frontend type check: `npx tsc --noEmit` passed with 0 errors.
+
 ---
 
 ## Backlog / Future Work
@@ -235,11 +271,10 @@
 - [ ] Habit type metadata (backend schema change)
 - [ ] Check-in metadata (backend schema change)
 - [x] Token refresh flow
+- [x] Settings screen and dark mode
 - [ ] Push notifications
 - [ ] Pagination (users, feed, check-in history)
 - [ ] Profile picture upload
 - [ ] Streak leaderboard
 - [ ] Offline support (React Query persistence)
 - [ ] App Store / Play Store submission
-
-

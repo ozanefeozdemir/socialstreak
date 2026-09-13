@@ -12,6 +12,7 @@ import {
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown, FadeInUp, BounceIn } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@/contexts/ThemeContext';
 
 import { Input } from '@/components/ui/Input';
 import { useCreateHabit } from '@/hooks/useHabits';
@@ -28,6 +29,7 @@ const FREQUENCIES: { value: FrequencyType; label: string; icon: IoniconsName }[]
 
 export default function CreateHabitScreen() {
   const router = useRouter();
+  const { colors, isDark } = useTheme();
   const createHabit = useCreateHabit();
 
   const [name, setName] = useState('');
@@ -51,7 +53,7 @@ export default function CreateHabitScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Background blobs */}
       <View style={styles.blobTopRight} />
       <View style={styles.blobBottomLeft} />
@@ -68,26 +70,29 @@ export default function CreateHabitScreen() {
           {/* Back button */}
           <Animated.View entering={FadeInUp.duration(400)}>
             <Pressable style={styles.backButton} onPress={() => router.back()}>
-              <Ionicons name="chevron-back" size={24} color="#6C5CE7" />
-              <Text style={styles.backText}>Back</Text>
+              <Ionicons name="chevron-back" size={24} color={colors.primary} />
+              <Text style={[styles.backText, { color: colors.primary }]}>Back</Text>
             </Pressable>
           </Animated.View>
 
           {/* Mascot */}
           <Animated.View entering={BounceIn.duration(800).delay(100)} style={styles.mascotContainer}>
-            <View style={styles.mascotBubble}>
-              <Ionicons name="flag" size={32} color="#6C5CE7" />
+            <View style={[styles.mascotBubble, isDark && { backgroundColor: colors.border }]}>
+              <Ionicons name="flag" size={32} color={colors.primary} />
             </View>
           </Animated.View>
 
           {/* Title */}
           <Animated.View entering={FadeInUp.duration(500).delay(200)} style={styles.titleContainer}>
-            <Text style={styles.title}>New Habit</Text>
-            <Text style={styles.subtitle}>What do you want to track?</Text>
+            <Text style={[styles.title, { color: colors.text }]}>New Habit</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>What do you want to track?</Text>
           </Animated.View>
 
           {/* Card */}
-          <Animated.View entering={FadeInDown.springify().damping(18).delay(300)} style={styles.card}>
+          <Animated.View
+            entering={FadeInDown.springify().damping(18).delay(300)}
+            style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: isDark ? '#000000' : '#6C5CE7' }]}
+          >
             <Input
               icon="✏️"
               placeholder="e.g., Read 30 minutes, Run 5km..."
@@ -97,13 +102,14 @@ export default function CreateHabitScreen() {
             />
 
             {/* Frequency selector */}
-            <Text style={styles.sectionLabel}>HOW OFTEN?</Text>
+            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>HOW OFTEN?</Text>
             <View style={styles.frequencyGrid}>
               {FREQUENCIES.map((f) => (
                 <Pressable
                   key={f.value}
                   style={[
                     styles.frequencyChip,
+                    { backgroundColor: isDark ? colors.background : '#F8F8FE', borderColor: colors.border },
                     frequency === f.value ? styles.frequencyChipActive : undefined,
                   ]}
                   onPress={() => setFrequency(f.value)}
@@ -111,11 +117,12 @@ export default function CreateHabitScreen() {
                   <Ionicons
                     name={f.icon}
                     size={18}
-                    color={frequency === f.value ? '#FFFFFF' : '#6B6B80'}
+                    color={frequency === f.value ? '#FFFFFF' : colors.textSecondary}
                   />
                   <Text
                     style={[
                       styles.frequencyLabel,
+                      { color: colors.text },
                       frequency === f.value ? styles.frequencyLabelActive : undefined,
                     ]}
                   >
