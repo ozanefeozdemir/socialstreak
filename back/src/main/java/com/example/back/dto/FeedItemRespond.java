@@ -10,5 +10,6 @@ public record FeedItemRespond(
         Instant createdAt,
         UserRespond user,
         HabitRespond habit,
-        int streak
+        int streak,
+        HabitSessionRespond session
 ) {}

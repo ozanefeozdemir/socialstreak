@@ -7,6 +7,7 @@ import {
   Pressable,
   RefreshControl,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInUp, BounceIn } from 'react-native-reanimated';
@@ -117,6 +118,10 @@ export default function FeedScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          initialNumToRender={6}
+          maxToRenderPerBatch={5}
+          windowSize={5}
+          removeClippedSubviews={Platform.OS !== 'web'}
           ListHeaderComponent={
             <FeedSummaryBanner
               todayCheckInCount={todayCount}

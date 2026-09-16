@@ -55,7 +55,7 @@ public class UserController {
         return ResponseEntity.ok().build();
     }
 
-    //@PreAuthorize("#id == principal.id")
+    @PreAuthorize("#id == principal.id")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteUserById(@PathVariable UUID id) {
         userService.deleteUserById(id);

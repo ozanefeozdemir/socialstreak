@@ -8,6 +8,7 @@ import 'react-native-reanimated';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { QueryProvider } from '@/contexts/QueryProvider';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
+import { SyncManager } from '@/components/SyncManager';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -49,6 +50,7 @@ function RootNavigation() {
   return (
     <>
       <StatusBar style={isDark ? 'light' : 'dark'} />
+      <SyncManager />
       <AuthGate>
         <Stack
           screenOptions={{

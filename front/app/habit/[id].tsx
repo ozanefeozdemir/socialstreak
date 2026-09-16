@@ -1,12 +1,15 @@
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useState } from 'react';
 import Animated, { FadeInDown, FadeInUp, BounceIn } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 
 import { useHabit } from '@/hooks/useHabits';
-import { useCheckIns, useCheckIn } from '@/hooks/useCheckIns';
-import type { CheckInRespond } from '@/types';
+import { useCheckIns } from '@/hooks/useCheckIns';
+import { useSessions } from '@/hooks/useSessions';
+import { HabitSessionModal } from '@/components/session/HabitSessionModal';
+import type { CheckInRespond, HabitSessionRespond } from '@/types';
 
 const FREQUENCY_LABELS: Record<string, string> = {
   DAILY: 'Daily',
@@ -21,6 +24,14 @@ const FREQUENCY_COLORS: Record<string, string> = {
   MONTHLY: '#FDCB6E',
   CUSTOM: '#E17055',
 };
+
+function formatDuration(seconds: number): string {
+  const mins = Math.round(seconds / 60);
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  return remMins > 0 ? `${hrs}h ${remMins}m` : `${hrs}h`;
+}
 
 function calculateStreak(checkIns: CheckInRespond[]): number {
   if (checkIns.length === 0) return 0;
@@ -55,22 +66,15 @@ export default function HabitDetailScreen() {
   const { colors, isDark } = useTheme();
   const { data: habit, isLoading: habitLoading } = useHabit(id);
   const { data: checkIns, isLoading: checkInsLoading } = useCheckIns(id);
-  const checkInMutation = useCheckIn();
+  const { data: sessions } = useSessions(id);
+  const [sessionModalVisible, setSessionModalVisible] = useState(false);
 
   const isLoading = habitLoading || checkInsLoading;
   const streak = checkIns ? calculateStreak(checkIns) : 0;
   const today = new Date().toISOString().slice(0, 10);
   const checkedInToday = checkIns?.some((c) => c.checkInDate === today) ?? false;
   const accentColor = habit ? (FREQUENCY_COLORS[habit.frequencyType] ?? '#6C5CE7') : '#6C5CE7';
-
-  const handleCheckIn = async () => {
-    if (checkedInToday || !id) return;
-    try {
-      await checkInMutation.mutateAsync(id);
-    } catch {
-      // TODO: toast
-    }
-  };
+  const type = habit?.habitType || 'GENERAL';
 
   // Recent check-ins (last 7)
   const recentCheckIns = checkIns
@@ -129,11 +133,30 @@ export default function HabitDetailScreen() {
         >
           <View style={[styles.accentDot, { backgroundColor: accentColor }]} />
           <Text style={[styles.habitName, { color: colors.text }]}>{habit.name}</Text>
-          <View style={[styles.frequencyBadge, { backgroundColor: accentColor + '18' }]}>
-            <Ionicons name="repeat" size={14} color={accentColor} />
-            <Text style={[styles.frequencyText, { color: accentColor }]}>
-              {FREQUENCY_LABELS[habit.frequencyType]}
-            </Text>
+          
+          <View style={styles.badgesRow}>
+            <View style={[styles.frequencyBadge, { backgroundColor: accentColor + '18' }]}>
+              <Ionicons name="repeat" size={14} color={accentColor} />
+              <Text style={[styles.frequencyText, { color: accentColor }]}>
+                {FREQUENCY_LABELS[habit.frequencyType]}
+              </Text>
+            </View>
+
+            {type !== 'GENERAL' && (
+              <View style={[styles.typeBadge, { backgroundColor: colors.primary + '18' }]}>
+                <Text style={[styles.typeText, { color: colors.primary }]}>
+                  {type}
+                </Text>
+              </View>
+            )}
+
+            {type === 'READING' && habit.config?.currentPage ? (
+              <View style={[styles.typeBadge, { backgroundColor: '#FEF3C7' }]}>
+                <Text style={[styles.typeText, { color: '#D97706' }]}>
+                  p. {habit.config.currentPage}
+                </Text>
+              </View>
+            ) : null}
           </View>
         </Animated.View>
 
@@ -158,36 +181,103 @@ export default function HabitDetailScreen() {
           </View>
         </Animated.View>
 
-        {/* Check-in button */}
+        {/* Session / Check-in button */}
         <Animated.View entering={BounceIn.duration(600).delay(300)}>
           <Pressable
             style={({ pressed }) => [
               styles.checkInButton,
               checkedInToday ? styles.checkInDone : undefined,
-              pressed && !checkedInToday ? styles.checkInPressed : undefined,
+              pressed ? styles.checkInPressed : undefined,
             ]}
-            onPress={handleCheckIn}
-            disabled={checkedInToday || checkInMutation.isPending}
+            onPress={() => setSessionModalVisible(true)}
           >
-            {checkInMutation.isPending ? (
-              <ActivityIndicator color="#fff" size="small" />
-            ) : (
-              <>
-                <Ionicons
-                  name={checkedInToday ? 'checkmark-circle' : 'add-circle'}
-                  size={24}
-                  color="#fff"
-                />
-                <Text style={styles.checkInText}>
-                  {checkedInToday ? 'Done for today!' : 'Check In'}
-                </Text>
-              </>
-            )}
+            <Ionicons
+              name={checkedInToday ? 'checkmark-circle' : 'play-circle'}
+              size={24}
+              color="#fff"
+            />
+            <Text style={styles.checkInText}>
+              {checkedInToday ? 'Done today! Log another session' : `Start ${type !== 'GENERAL' ? type.toLowerCase() : ''} session`}
+            </Text>
           </Pressable>
         </Animated.View>
 
-        {/* Recent activity */}
-        {recentCheckIns.length > 0 ? (
+        {/* Recent sessions or check-ins */}
+        {sessions && sessions.length > 0 ? (
+          <Animated.View entering={FadeInDown.duration(500).delay(400)} style={styles.activitySection}>
+            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>RECORDED SESSIONS ({sessions.length})</Text>
+            <View style={[styles.activityCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: isDark ? '#000000' : '#6C5CE7' }]}>
+              {sessions.slice(0, 10).map((session, i) => (
+                <View key={session.id} style={styles.sessionItem}>
+                  <View style={styles.sessionItemTop}>
+                    <View style={styles.activityDot}>
+                      <Ionicons name="flash" size={12} color="#6C5CE7" />
+                    </View>
+                    <Text style={[styles.activityDate, { color: colors.text }]}>
+                      {session.createdAt
+                        ? new Date(session.createdAt).toLocaleDateString('en', {
+                            weekday: 'short',
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : 'Recent'}
+                    </Text>
+                    {session.durationSeconds ? (
+                      <View style={[styles.sessionChip, { backgroundColor: isDark ? '#2E204A' : '#EDE9FE' }]}>
+                        <Ionicons name="time-outline" size={11} color="#6C5CE7" />
+                        <Text style={[styles.sessionChipText, { color: '#6C5CE7' }]}>
+                          {formatDuration(session.durationSeconds)}
+                        </Text>
+                      </View>
+                    ) : null}
+                  </View>
+
+                  {/* Telemetry details */}
+                  <View style={styles.sessionChipsRow}>
+                    {Array.isArray(session.sessionData?.bodyParts) &&
+                      session.sessionData.bodyParts.map((bp: string) => (
+                        <View key={bp} style={[styles.sessionChip, { backgroundColor: isDark ? '#15314B' : '#E0F2FE' }]}>
+                          <Text style={[styles.sessionChipText, { color: '#0284C7' }]}>
+                            {bp.charAt(0).toUpperCase() + bp.slice(1).toLowerCase()}
+                          </Text>
+                        </View>
+                      ))}
+
+                    {session.sessionData?.distanceKm != null && (
+                      <View style={[styles.sessionChip, { backgroundColor: isDark ? '#103926' : '#DCFCE7' }]}>
+                        <Ionicons name="navigate-outline" size={11} color="#16A34A" />
+                        <Text style={[styles.sessionChipText, { color: '#16A34A' }]}>
+                          {session.sessionData.distanceKm} km
+                        </Text>
+                      </View>
+                    )}
+
+                    {session.sessionData?.pagesRead != null && (
+                      <View style={[styles.sessionChip, { backgroundColor: isDark ? '#3D2B13' : '#FEF3C7' }]}>
+                        <Ionicons name="book-outline" size={11} color="#D97706" />
+                        <Text style={[styles.sessionChipText, { color: '#D97706' }]}>
+                          +{session.sessionData.pagesRead} pages (to p. {session.sessionData.endPage})
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+
+                  {session.notes ? (
+                    <Text style={[styles.sessionNotesText, { color: colors.textSecondary }]}>
+                      "{session.notes}"
+                    </Text>
+                  ) : null}
+
+                  {i < Math.min(sessions.length, 10) - 1 ? (
+                    <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          </Animated.View>
+        ) : recentCheckIns.length > 0 ? (
           <Animated.View entering={FadeInDown.duration(500).delay(400)} style={styles.activitySection}>
             <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>RECENT ACTIVITY</Text>
             <View style={[styles.activityCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: isDark ? '#000000' : '#6C5CE7' }]}>
@@ -212,6 +302,13 @@ export default function HabitDetailScreen() {
           </Animated.View>
         ) : null}
       </ScrollView>
+
+      {/* Habit Session Modal */}
+      <HabitSessionModal
+        visible={sessionModalVisible}
+        habit={habit}
+        onClose={() => setSessionModalVisible(false)}
+      />
     </View>
   );
 }
@@ -436,5 +533,64 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#8B8BA0',
     fontWeight: '600',
+  },
+
+  // Badges & Sessions
+  badgesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+  },
+  typeBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 10,
+  },
+  typeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  sessionItem: {
+    paddingVertical: 12,
+  },
+  sessionItemTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 6,
+  },
+  sessionChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    paddingLeft: 34,
+    marginBottom: 4,
+  },
+  sessionChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    gap: 4,
+  },
+  sessionChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  sessionNotesText: {
+    fontSize: 13,
+    fontStyle: 'italic',
+    paddingLeft: 34,
+    marginTop: 2,
+    marginBottom: 4,
+  },
+  divider: {
+    height: 1,
+    marginTop: 12,
+    opacity: 0.5,
   },
 });

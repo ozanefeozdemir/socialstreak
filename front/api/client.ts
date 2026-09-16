@@ -1,6 +1,8 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
+import { useSyncStore } from '@/store/useSyncStore';
 
 import type { AuthRespond, UserRespond } from '@/types';
 
@@ -126,6 +128,32 @@ apiClient.interceptors.request.use(
     } else {
       delete config.headers.Authorization;
     }
+
+    // Offline Interceptor for Write Operations
+    if (config.method && ['post', 'put', 'delete', 'patch'].includes(config.method.toLowerCase())) {
+      const netState = await NetInfo.fetch();
+      if (!netState.isConnected) {
+        // Queue the mutation for background sync
+        useSyncStore.getState().addToQueue({
+          url: config.url || '',
+          method: config.method.toUpperCase() as any,
+          payload: config.data,
+        });
+
+        // Override the adapter to mock a successful response (Optimistic UI)
+        config.adapter = async () => {
+          return {
+            data: { success: true, offline: true },
+            status: 200,
+            statusText: 'OK',
+            headers: config.headers as any,
+            config,
+            request: {},
+          };
+        };
+      }
+    }
+
     return config;
   },
   (error) => Promise.reject(error),

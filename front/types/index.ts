@@ -2,6 +2,7 @@
 
 // ── Enums ─────────────────────────────────────────
 export type FrequencyType = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'CUSTOM';
+export type HabitType = 'GENERAL' | 'WORKOUT' | 'RUNNING' | 'READING' | 'MEDITATION' | 'WATER' | 'CUSTOM';
 
 // ── Auth ──────────────────────────────────────────
 export interface LoginRequest {
@@ -53,13 +54,40 @@ export interface ChangePasswordRequest {
 export interface HabitRequest {
   name: string;
   frequencyType: FrequencyType;
+  habitType?: HabitType;
+  config?: Record<string, any>;
+  isPublic?: boolean;
 }
 
 export interface HabitRespond {
   id: string;
   name: string;
   frequencyType: FrequencyType;
+  habitType: HabitType;
+  config?: Record<string, any>;
   archived: boolean;
+  isPublic: boolean;
+  createdAt: string; // ISO 8601 Instant
+}
+
+// ── Habit Session ─────────────────────────────────
+export interface HabitSessionRequest {
+  startedAt?: string;
+  endedAt?: string;
+  durationSeconds?: number;
+  sessionData?: Record<string, any>;
+  notes?: string;
+}
+
+export interface HabitSessionRespond {
+  id: string;
+  habitId: string;
+  checkInId?: string;
+  startedAt?: string;
+  endedAt?: string;
+  durationSeconds?: number;
+  sessionData?: Record<string, any>;
+  notes?: string;
   createdAt: string; // ISO 8601 Instant
 }
 
@@ -93,6 +121,7 @@ export interface FeedItemRespond {
   user: UserRespond;
   habit: HabitRespond;
   streak: number;
+  session?: HabitSessionRespond;
 }
 
 // ── Error ─────────────────────────────────────────

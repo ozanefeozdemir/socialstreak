@@ -16,6 +16,6 @@ public interface CheckInRepository extends JpaRepository<CheckIn, UUID> {
     Optional<CheckIn> findByHabitIdAndCheckInDate(UUID habitId, LocalDate checkInDate);
     boolean existsByHabitIdAndCheckInDate(UUID habitId, LocalDate checkInDate);
 
-    @Query("SELECT c FROM CheckIn c JOIN FETCH c.habit h JOIN FETCH h.user u WHERE h.user.id IN :userIds AND h.archived = false ORDER BY c.createdAt DESC")
+    @Query("SELECT c FROM CheckIn c JOIN FETCH c.habit h JOIN FETCH h.user u WHERE h.user.id IN :userIds AND h.archived = false AND h.isPublic = true ORDER BY c.createdAt DESC")
     List<CheckIn> findFeedCheckInsByUserIds(@Param("userIds") List<UUID> userIds);
 }

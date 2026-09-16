@@ -28,12 +28,20 @@ const FREQUENCY_COLORS: Record<string, { bg: string; text: string; icon: string 
   CUSTOM: { bg: '#FFE8DF', text: '#E17055', icon: 'options-outline' },
 };
 
+function formatDuration(seconds: number): string {
+  const mins = Math.round(seconds / 60);
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  const remainingMins = mins % 60;
+  return remainingMins > 0 ? `${hrs}h ${remainingMins}m` : `${hrs}h`;
+}
+
 interface FeedItemProps {
   item: FeedItemRespond;
   index: number;
 }
 
-export function FeedItem({ item, index }: FeedItemProps) {
+export const FeedItem = React.memo(function FeedItem({ item, index }: FeedItemProps) {
   const { colors, isDark } = useTheme();
   const [cheered, setCheered] = useState(false);
   const [cheerCount, setCheerCount] = useState(0);
@@ -127,6 +135,55 @@ export function FeedItem({ item, index }: FeedItemProps) {
               </Text>
             </View>
           </View>
+
+          {/* Session Data (if present) */}
+          {item.session ? (
+            <View style={[styles.sessionBox, { borderTopColor: isDark ? colors.border : '#ECE7FF' }]}>
+              <View style={styles.sessionDetails}>
+                {item.session.durationSeconds ? (
+                  <View style={[styles.sessionChip, { backgroundColor: isDark ? '#2E204A' : '#EDE9FE' }]}>
+                    <Ionicons name="time-outline" size={12} color="#6C5CE7" />
+                    <Text style={[styles.sessionChipText, { color: '#6C5CE7' }]}>
+                      {formatDuration(item.session.durationSeconds)}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {Array.isArray(item.session.sessionData?.bodyParts) &&
+                  item.session.sessionData.bodyParts.map((bp: string) => (
+                    <View key={bp} style={[styles.sessionChip, { backgroundColor: isDark ? '#15314B' : '#E0F2FE' }]}>
+                      <Text style={[styles.sessionChipText, { color: '#0284C7' }]}>
+                        {bp.charAt(0).toUpperCase() + bp.slice(1).toLowerCase()}
+                      </Text>
+                    </View>
+                  ))}
+
+                {item.session.sessionData?.distanceKm != null && (
+                  <View style={[styles.sessionChip, { backgroundColor: isDark ? '#103926' : '#DCFCE7' }]}>
+                    <Ionicons name="navigate-outline" size={12} color="#16A34A" />
+                    <Text style={[styles.sessionChipText, { color: '#16A34A' }]}>
+                      {item.session.sessionData.distanceKm} km
+                    </Text>
+                  </View>
+                )}
+
+                {item.session.sessionData?.pagesRead != null && (
+                  <View style={[styles.sessionChip, { backgroundColor: isDark ? '#3D2B13' : '#FEF3C7' }]}>
+                    <Ionicons name="book-outline" size={12} color="#D97706" />
+                    <Text style={[styles.sessionChipText, { color: '#D97706' }]}>
+                      +{item.session.sessionData.pagesRead} pages
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {item.session.notes ? (
+                <Text style={[styles.sessionNotes, { color: colors.textSecondary }]} numberOfLines={2}>
+                  "{item.session.notes}"
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
         </View>
 
         {/* Footer: Social Reaction Cheer Button */}
@@ -162,7 +219,7 @@ export function FeedItem({ item, index }: FeedItemProps) {
       </View>
     </Animated.View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -355,5 +412,33 @@ const styles = StyleSheet.create({
   },
   cheerBadgeTextActive: {
     color: '#FFFFFF',
+  },
+  sessionBox: {
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    gap: 6,
+  },
+  sessionDetails: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  sessionChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+  },
+  sessionChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  sessionNotes: {
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginTop: 2,
   },
 });

@@ -52,14 +52,16 @@ Spring Boot runs on **localhost:8080** (default).
 | createdAt    | Instant   | auto (CreationTimestamp)    |
 
 ### Habit (`habits`)
-| Field         | Type          | Constraints              |
-|---------------|---------------|--------------------------|
-| id            | UUID          | PK, auto-generated      |
-| name          | String        | not null                 |
-| user          | User (FK)     | many-to-one, not null    |
+| Field         | Type          | Constraints                 |
+|---------------|---------------|-----------------------------|
+| id            | UUID          | PK, auto-generated         |
+| name          | String        | not null                    |
+| user          | User (FK)     | many-to-one, not null       |
 | frequencyType | FrequencyType | DAILY/WEEKLY/MONTHLY/CUSTOM |
-| archived      | boolean       | default false            |
-| createdAt     | Instant       | auto                     |
+| habitType     | HabitType     | GENERAL/WORKOUT/RUNNING/READING/MEDITATION/WATER/CUSTOM (default GENERAL) |
+| config        | Map<String, Object> | JSONB, nullable (stateful config like book/page) |
+| archived      | boolean             | default false               |
+| createdAt     | Instant             | auto                        |
 
 ### CheckIn (`check_ins`)
 | Field       | Type      | Constraints                              |
@@ -68,6 +70,20 @@ Spring Boot runs on **localhost:8080** (default).
 | habit       | Habit (FK)| many-to-one, not null                    |
 | checkInDate | LocalDate | not null, unique per (habit_id, date)    |
 | createdAt   | Instant   | auto                                     |
+
+### HabitSession (`habit_sessions`)
+| Field          | Type                | Constraints                          |
+|----------------|---------------------|--------------------------------------|
+| id             | UUID                | PK, auto-generated                  |
+| habit          | Habit (FK)          | many-to-one, not null                |
+| checkIn        | CheckIn(FK)         | many-to-one, nullable (auto-linked)  |
+| startedAt      | Instant             | nullable                             |
+| endedAt        | Instant             | nullable                             |
+| durationSeconds| Integer             | nullable                             |
+| sessionData    | Map<String, Object> | JSONB, nullable (habit-specific payload) |
+| notes          | String     | max length 500, nullable             |
+| createdAt      | Instant    | auto (CreationTimestamp)             |
+> Represents individual active activity sessions. Multiple sessions can occur in a single day, while automatically anchoring today's `CheckIn` streak.
 
 ### Friendship (`friendships`)
 | Field     | Type      | Constraints                         |
@@ -100,6 +116,11 @@ Spring Boot runs on **localhost:8080** (default).
 ### FrequencyType (Enum)
 ```
 DAILY | WEEKLY | MONTHLY | CUSTOM
+```
+
+### HabitType (Enum)
+```
+GENERAL | WORKOUT | RUNNING | READING | MEDITATION | WATER | CUSTOM
 ```
 
 ---
@@ -156,8 +177,21 @@ DAILY | WEEKLY | MONTHLY | CUSTOM
 | PATCH  | `/api/habit/{id}/unarchive`| —                               | `HabitRespond`                    |              |
 | DELETE | `/api/habit/{id}`          | —                               | 204 No Content                    |              |
 
-**HabitRespond**: `{ id, name, frequencyType, archived, createdAt }`
-**HabitRequest**: `{ name (NotBlank), frequencyType (NotNull: DAILY|WEEKLY|MONTHLY|CUSTOM) }`
+**HabitRespond**: `{ id, name, frequencyType, habitType, config, archived, createdAt }`
+**HabitRequest**: `{ name (NotBlank), frequencyType (NotNull: DAILY|WEEKLY|MONTHLY|CUSTOM), habitType?, config? }`
+
+---
+
+### Habit Sessions — `/api/habit/{habitId}/session` (AUTHENTICATED)
+
+| Method | Path                                      | Request Body                                              | Response                 | Notes                  |
+|--------|-------------------------------------------|-----------------------------------------------------------|--------------------------|------------------------|
+| POST   | `/api/habit/{habitId}/session`            | `{ startedAt, endedAt, durationSeconds, sessionData, notes }` | `HabitSessionRespond` | 201 Created. Auto-links or creates today's check-in |
+| GET    | `/api/habit/{habitId}/session`            | —                                                         | `HabitSessionRespond[]`  | Ordered by date DESC   |
+| DELETE | `/api/habit/{habitId}/session/{sessionId}`| —                                                         | 204 No Content           |                        |
+
+**HabitSessionRespond**: `{ id, habitId, checkInId, startedAt, endedAt, durationSeconds, sessionData, notes, createdAt }`
+**HabitSessionRequest**: `{ startedAt?, endedAt?, durationSeconds?, sessionData?, notes? }`
 
 ---
 
@@ -205,7 +239,7 @@ DAILY | WEEKLY | MONTHLY | CUSTOM
 |--------|--------------|----------------------|-----------------------------------|
 | GET    | `/api/feed`  | `FeedItemRespond[]`  | Chronological check-ins of friends|
 
-**FeedItemRespond**: `{ id, checkInDate, createdAt, user: UserRespond, habit: HabitRespond, streak: number }`
+**FeedItemRespond**: `{ id, checkInDate, createdAt, user: UserRespond, habit: HabitRespond, streak: number, session?: HabitSessionRespond }`
 
 ---
 
@@ -256,8 +290,8 @@ All errors follow a consistent structure:
 | Router        | expo-router (file-based)       |
 | Language      | TypeScript 6.x                 |
 | HTTP Client   | Axios                          |
-| State/Cache   | TanStack React Query 5         |
-| Secure Storage| expo-secure-store (for JWT)    |
+| State/Cache   | TanStack React Query 5 + Zustand|
+| Storage       | expo-secure-store (JWT) + AsyncStorage |
 | Animations    | react-native-reanimated 4.5    |
 | Date Utils    | date-fns 4                     |
 | Navigation    | Stack + Tabs (expo-router)     |
@@ -289,6 +323,7 @@ front/
 │   └── endpoints/
 │       ├── auth.ts          → login, register
 │       ├── habits.ts        → CRUD + archive/unarchive
+│       ├── sessions.ts      → create, getAll, delete (HabitSession)
 │       ├── checkins.ts      → checkIn, list, delete
 │       ├── friends.ts       → list, delete
 │       ├── friendRequests.ts→ sent, received, send, accept, delete
@@ -297,7 +332,8 @@ front/
 ├── types/
 │   └── index.ts             → TypeScript interfaces matching backend DTOs
 └── hooks/
-    └── useAuth.ts           → Auth context/state management
+    ├── useAuth.ts           → Auth context/state management
+    └── useSessions.ts       → HabitSession query & mutation hooks
 ```
 
 ### Key Development Notes
@@ -399,22 +435,18 @@ The Discover screen uses a top segmented pill switcher with two primary views:
 
 ## Habit Types System
 
-Each habit has a `habitType` determining which metadata fields are available. Check-ins also carry type-specific data.
+Each habit has a `habitType` determining which fields and session behaviors are used. The backend implements this via `HabitType` enum + `config` JSONB column on `habits`, and polymorphic `sessionData` JSONB on `habit_sessions`.
 
-| Type | Enum Value | Metadata Fields |
-|------|-----------|-----------------|
-| 📚 Reading | `READING` | bookName, currentPage, totalPages |
-| 🏃 Running | `RUNNING` | distanceKm, durationMin, routeName |
-| 🧘 Meditation | `MEDITATION` | durationMin, type (guided/silent) |
-| 💪 Workout | `WORKOUT` | workoutType, durationMin, notes |
-| 💧 Water | `WATER` | glasses, dailyGoal |
-| ✍️ Journaling | `JOURNALING` | wordCount, moodTag |
-| 🎸 Practice | `PRACTICE` | durationMin, pieceName |
-| 🛌 Sleep | `SLEEP` | hours, quality (1-5), bedtime |
-| 🍎 Diet | `DIET` | mealsLogged, calorieEstimate |
-| 🔧 Custom | `CUSTOM` | user-defined label + value pairs |
+| Type | Enum Value | Session Data / Config |
+|------|-----------|------------------------|
+| 📚 Reading | `READING` | `bookTitle`, `currentPage`, `startPage`, `endPage`, `pagesRead`, `totalPages` |
+| 🏃 Running | `RUNNING` | `distanceKm`, `durationSeconds`, `avgPace`, `notes` |
+| 💪 Workout | `WORKOUT` | `bodyParts` (Chest, Shoulders, Arms, etc.), `durationSeconds`, `notes` |
+| 🧘 Meditation | `MEDITATION` | `durationSeconds`, `style`, `postMood` |
+| 💧 Water | `WATER` | `glasses`, `dailyGoal` |
+| ✨ General / Custom | `GENERAL` / `CUSTOM` | Flexible metric + value pairs |
 
-> **Backend change required**: `habitType` enum + `metadata` JSONB column on `habits` and `check_ins` tables. This is tracked in future work.
+> **Implementation**: `HabitType` enum and `config` JSONB on `habits` table; `HabitSession` entity with `session_data` JSONB on `habit_sessions` table. Creating a session automatically anchors or advances today's `CheckIn` calendar streak, and enriches friends' social feed cards with rich session metrics.
 
 ---
 
@@ -435,8 +467,7 @@ When a user checks in a habit, it automatically appears in their friends' Feed t
 ## Future Work (Deferred)
 
 - Most common & trending habits list in Discover tab (habit suggestions/templates)
-- `isPublic` boolean column on `habits` table (public/private toggle per habit)
-- Push notifications (daily reminders, friend activity)
+- Push notifications (daily reminders, friend activity, live session status in native notification bar)
 - Pagination on user list, feed, check-in history
 - Profile picture upload
 - Streak leaderboard among friends
@@ -480,12 +511,14 @@ front/
 │   ├── useFeed.ts
 │   ├── useFriends.ts
 │   ├── useFriendRequests.ts
+│   ├── useSessions.ts
 │   └── useUsers.ts
 ├── components/
 │   ├── ui/                       → Design system (Button, Input, Card) (DONE ✅)
 │   ├── habit/                    → HabitCard, HabitList, StreakCounter, HabitStreakCard (DONE ✅)
 │   ├── feed/                     → FeedItem, FeedSummaryBanner (DONE ✅)
 │   ├── friend/                   → FriendCard, UserSearchResult, FriendRequestCard (DONE ✅)
+│   ├── session/                  → HabitSessionModal (Workout splits, Running pace, Reading pages, etc.) (DONE ✅)
 │   └── common/                   → LoadingScreen, EmptyState, ErrorBoundary
 ├── contexts/
 │   ├── AuthContext.tsx            → Auth state (token, user, isLoggedIn)

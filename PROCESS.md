@@ -255,26 +255,105 @@
     - `app/(tabs)/profile.tsx`, `feed.tsx`, `discover.tsx`, `index.tsx`: Modals, segmented controls, search bars, and progress tracks.
 - ✅ **Profile Subsections Back Navigation**:
   - Replaced circular close buttons in Habit Streaks and Friends modals with the exact animated back button component from `habit/[id].tsx` (`chevron-back` + "Back" label + `FadeInUp` animation).
+- ✅ **Habit Types & HabitSession Entity Architecture**:
+  - **Backend Models & Database Schema**:
+    - Created `HabitType` enum: `GENERAL`, `WORKOUT`, `RUNNING`, `READING`, `MEDITATION`, `WATER`, `CUSTOM`.
+    - Added `habitType` and JSONB `config` (using `@JdbcTypeCode(SqlTypes.JSON)`) to `Habit` entity and DTOs (`HabitRequest`, `HabitRespond`).
+    - Created `HabitSession` entity mapped to `habit_sessions` table with `startedAt`, `endedAt`, `durationSeconds`, JSONB `sessionData`, `notes`, and FKs to `Habit` and `CheckIn`.
+    - Created `HabitSessionRequest` and `HabitSessionRespond` DTOs.
+    - Created `HabitSessionRepository` with queries for habit history and batch loading for check-ins (`findByCheckInIdIn`).
+    - Created `HabitSessionMapper` MapStruct mapper.
+  - **Service & Business Logic**:
+    - Built `HabitSessionService`:
+      - Validates habit ownership.
+      - Resolves user local date from timezone.
+      - Automatically finds or creates today's `CheckIn` anchor, advancing streaks without duplicate conflict on multiple daily sessions.
+      - Automatically advances reading state (`currentPage`, `currentBook`, `totalPages`) in `Habit.config` if habit is `READING`.
+    - Updated `FeedService`: Batch-loads latest sessions for friends' check-ins without N+1 queries, enriching `FeedItemRespond` with session details.
+    - Created `HabitSessionController` (`POST /api/habit/{id}/session`, `GET /api/habit/{id}/session`, `DELETE /api/habit/{id}/session/{sessionId}`).
+  - **Unit Testing**:
+    - Built comprehensive unit test suite `HabitSessionServiceTest` covering new check-in creation, existing check-in reuse, reading config auto-advance, ownership checks, and unauthorized deletion prevention.
+  - **Frontend Architecture**:
+    - Updated `front/types/index.ts` with `HabitType`, `HabitSessionRequest`, `HabitSessionRespond`, and enriched `FeedItemRespond`.
+    - Created `front/api/endpoints/sessions.ts` (API client for sessions).
+    - Created `front/hooks/useSessions.ts` (TanStack React Query hooks with automatic cache invalidation across sessions, check-ins, habits, and feed).
+    - Updated `front/app/habit/create.tsx` with modern, themed Habit Type selector chips (`General`, `Workout`, `Running`, `Reading`, `Meditation`, `Water`, `Custom`).
+    - Created `front/components/session/HabitSessionModal.tsx`:
+      - Comprehensive modal tailored per habit type with built-in stopwatch timer, manual time toggle, and notes.
+      - **Workout**: 1-tap split presets (`Push`, `Pull`, `Legs`, `Full Body`, `Upper`, `Core`) + toggle chips for 6 primary muscle groups (`Chest`, `Back`, `Shoulders`, `Arms`, `Legs`, `Core`) and intensity selector.
+      - **Running**: Real-time timer, distance input with live pace (min/km) calculator, and surface type.
+      - **Reading**: Continuity tracking showing last-read page, start/end page inputs with pages read delta, and total pages progress.
+      - **Meditation**: Guided breath/mindfulness presets (5m, 10m, 15m, 20m, 30m) with timer.
+      - **Water**: Rapid incremental cup/glass logger (+250ml, +500ml) with daily target progress bar.
+    - Updated `front/components/habit/HabitCard.tsx`:
+      - Replaced raw checkbox check-in with habit-type specific action buttons (`barbell`, `walk`, `book-outline`, etc.).
+      - Added reading page badge (`p. 42`) for reading habits.
+      - Tapping the action button opens `HabitSessionModal` directly.
+    - Updated `front/app/(tabs)/index.tsx` to mount `HabitSessionModal` and connect habit card presses.
+    - Updated `front/app/habit/[id].tsx`:
+      - Replaced check-in button with habit session launcher.
+      - Added "RECORDED SESSIONS" timeline displaying session durations, muscle chips, distance, reading progress, and notes.
+    - Updated `front/components/feed/FeedItem.tsx` to render rich session telemetry (duration pills, workout muscle group chips, running km badges, reading progress counters, and session notes).
+- ✅ **Jackson 3 / Spring Boot 4 Compatibility Fix**:
+  - Replaced Jackson 2 `com.fasterxml.jackson.databind.JsonNode` with `Map<String, Object>` across DTOs (`HabitSessionRequest`, `HabitSessionRespond`, `HabitRequest`, `HabitRespond`) and Entities (`Habit.config`, `HabitSession.sessionData`).
+  - Fixed `HttpMessageConversionException: Cannot construct instance of JsonNode` thrown by Spring WebMVC's Jackson 3 converter (`tools.jackson.databind`).
+- ✅ **Verification**:
+  - Backend: `./gradlew test --rerun` passed with 100% success (all unit tests + new `HabitSessionControllerTest` HTTP deserialization test passing).
+  - Frontend type check: `npx tsc --noEmit` passed with 0 errors.
+
+---
+
+## Session 10 — 2026-09-16 (Persistent Sessions & Offline Mode)
+
+### What was done
+- ✅ **Offline Mode & Caching**:
+  - Migrated `QueryClientProvider` to `PersistQueryClientProvider` utilizing `@tanstack/react-query-persist-client` and `@tanstack/query-async-storage-persister`.
+  - Offline cache is persisted to `AsyncStorage` allowing immediate access to habits, check-ins, and friends without internet connectivity.
+  - Implemented `useSyncStore.ts` (Zustand) serving as a robust offline mutation queue for `POST`, `PUT`, `DELETE` operations.
+  - Updated `api/client.ts` Axios interceptors: when network is unreachable (`NetInfo`), write requests are captured, logged into the `SyncQueue`, and spoofed with optimistic HTTP 200 JSON responses.
+  - Built `SyncManager.tsx` that silently flushes pending writes to the backend once connectivity is restored.
+- ✅ **Persistent, Concurrent Habit Sessions**:
+  - Re-architected `HabitSessionModal` timer state from React local state to a centralized Zustand store (`useSessionStore.ts`).
+  - Allowed multiple independent habit sessions to be actively running in the background simultaneously.
+  - Built real-time session tracking that calculates durations securely off timestamps, rendering accurate progress upon foregrounding the app or remounting components.
+- ✅ **Session UX Polish**:
+  - Added dynamic, frosted-glass blur overlays to active `HabitCard`s directly inside `app/(tabs)/index.tsx`, preventing duplicate inputs while providing a "Resume" action button.
+  - Implemented a smooth horizontal `ActiveSessionsList` component prominently anchored below the header, broadcasting active timers and shortcuts.
+- ✅ **Background Notifications**:
+  - Programmed `SyncManager.tsx` to detect `AppState` transitions. Entering the background with running sessions fires a live `expo-notifications` local reminder, alerting the user to unresolved timers.
 - ✅ **Verification**:
   - Frontend type check: `npx tsc --noEmit` passed with 0 errors.
 
 ---
 
 ## Backlog / Future Work
+- [ ] BACKEND GET /api/users DATA LEAKAGE, OPTIMIZE QUERY AND RESPONSE DTO !!!!
+
 
 - [ ] Most common / trending habits list in Discover tab (habit templates/suggestions)
+- [ ] Add pagination, searchbar and filtering to habits list view
 - [ ] Add subtle timer (3 Hours left) to habit cards in habits list view to remind user check in and colorize the timer green to red according to remaining time. 
 - [ ] Public/private habit visibility toggle (backend + frontend)
+- [ ] Delete Habit button in habit card
+- [ ] Cheer post in feed (Currently it works but it is not instant. We should add it to rabbitmq)
+- [ ] Streak related reward or ranking system to keep user motivated.
 - [ ] Profile inspection with clicking on friends in feed or profile.
+- [ ] All streaks are calculated by day, but we should implement it by habit type. For example, for the weekly habit type, the streak should be calculated by week.
 - [x] Feed endpoint (`GET /api/feed`)
+- [ ] Add pagination for API endpoints (Users, Feed, Habits, Check-ins).
+- [x] Persistent Session State: When user starts a session, closing modal keeps timer running. Blur overlays for active habits, active sessions list.
+- [ ] Notification Integration: Add live ticking clocks in notification bar (requires custom native code / `notifee`).
+- [ ] Discover page enhancements: algorithmic friend recommendations and trending habits list.
 - [x] Profile Day Streak modal with highest streak per habit
-- [ ] Habit type metadata (backend schema change)
-- [ ] Check-in metadata (backend schema change)
+- [x] Habit type metadata (backend schema change)
+- [x] Check-in metadata & HabitSession entity (backend schema change)
+- [ ] "Custom" frequency type configuration (Days of week selection etc.) 
 - [x] Token refresh flow
 - [x] Settings screen and dark mode
+- [ ] Add RabbitMQ implementation for push notifications and feed (When user checks-in queue job to feed and sends push notifications to friends who follows the user)
 - [ ] Push notifications
 - [ ] Pagination (users, feed, check-in history)
 - [ ] Profile picture upload
 - [ ] Streak leaderboard
-- [ ] Offline support (React Query persistence)
+- [x] Offline support (React Query persistence + Mutation Queue)
 - [ ] App Store / Play Store submission

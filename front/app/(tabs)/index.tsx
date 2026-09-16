@@ -7,6 +7,7 @@ import {
   Pressable,
   RefreshControl,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown, FadeInUp, BounceIn } from 'react-native-reanimated';
@@ -14,6 +15,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 
 import { HabitCard } from '@/components/habit/HabitCard';
+import { HabitSessionModal } from '@/components/session/HabitSessionModal';
+import { ActiveSessionsList } from '@/components/session/ActiveSessionsList';
 import { useHabits } from '@/hooks/useHabits';
 import { useCheckIn } from '@/hooks/useCheckIns';
 import { checkInsApi } from '@/api/endpoints/checkins';
@@ -90,23 +93,15 @@ export default function HabitsScreen() {
   const { colors, isDark } = useTheme();
   const { data: habits, isLoading, refetch, isRefetching } = useHabits();
   const { data: checkInMap } = useTodayCheckIns(habits);
-  const checkInMutation = useCheckIn();
-  const [checkingIn, setCheckingIn] = useState<string | null>(null);
+  const [sessionHabit, setSessionHabit] = useState<HabitRespond | null>(null);
 
   const activeHabits = habits?.filter((h) => !h.archived) ?? [];
   const completedToday = activeHabits.filter((h) => checkInMap?.[h.id]?.checkedIn).length;
   const totalActive = activeHabits.length;
 
-  const handleCheckIn = useCallback(async (habitId: string) => {
-    setCheckingIn(habitId);
-    try {
-      await checkInMutation.mutateAsync(habitId);
-    } catch {
-      // Error handling — toast in future
-    } finally {
-      setCheckingIn(null);
-    }
-  }, [checkInMutation]);
+  const handleStartSession = useCallback((habit: HabitRespond) => {
+    setSessionHabit(habit);
+  }, []);
 
   const handleHabitPress = useCallback((habitId: string) => {
     router.push(`/habit/${habitId}`);
@@ -119,13 +114,12 @@ export default function HabitsScreen() {
         habit={item}
         streak={info?.streak ?? 0}
         checkedInToday={info?.checkedIn ?? false}
-        onCheckIn={handleCheckIn}
+        onCheckIn={handleStartSession}
         onPress={handleHabitPress}
-        checkInLoading={checkingIn === item.id}
         index={index}
       />
     );
-  }, [checkInMap, handleCheckIn, handleHabitPress, checkingIn]);
+  }, [checkInMap, handleStartSession, handleHabitPress]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -169,6 +163,9 @@ export default function HabitsScreen() {
         </Animated.View>
       ) : null}
 
+      {/* Active Sessions List */}
+      <ActiveSessionsList onOpenSession={handleStartSession} />
+
       {/* Content */}
       {isLoading ? (
         <View style={styles.loadingContainer}>
@@ -192,6 +189,10 @@ export default function HabitsScreen() {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
+          initialNumToRender={8}
+          maxToRenderPerBatch={6}
+          windowSize={5}
+          removeClippedSubviews={Platform.OS !== 'web'}
           refreshControl={
             <RefreshControl
               refreshing={isRefetching}
@@ -212,6 +213,13 @@ export default function HabitsScreen() {
           <Text style={styles.fabText}>+</Text>
         </Pressable>
       </Animated.View>
+
+      {/* Habit Session Modal */}
+      <HabitSessionModal
+        visible={!!sessionHabit}
+        habit={sessionHabit}
+        onClose={() => setSessionHabit(null)}
+      />
     </View>
   );
 }

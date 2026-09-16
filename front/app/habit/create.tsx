@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Switch,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown, FadeInUp, BounceIn } from 'react-native-reanimated';
@@ -16,9 +17,19 @@ import { useTheme } from '@/contexts/ThemeContext';
 
 import { Input } from '@/components/ui/Input';
 import { useCreateHabit } from '@/hooks/useHabits';
-import type { FrequencyType } from '@/types';
+import type { FrequencyType, HabitType } from '@/types';
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
+
+const HABIT_TYPES: { value: HabitType; label: string; icon: IoniconsName }[] = [
+  { value: 'GENERAL', label: 'General', icon: 'sparkles' },
+  { value: 'WORKOUT', label: 'Workout', icon: 'barbell' },
+  { value: 'RUNNING', label: 'Running', icon: 'walk' },
+  { value: 'READING', label: 'Reading', icon: 'book' },
+  { value: 'MEDITATION', label: 'Meditation', icon: 'leaf' },
+  { value: 'WATER', label: 'Water', icon: 'water' },
+  { value: 'CUSTOM', label: 'Custom', icon: 'options' },
+];
 
 const FREQUENCIES: { value: FrequencyType; label: string; icon: IoniconsName }[] = [
   { value: 'DAILY', label: 'Daily', icon: 'sunny' },
@@ -33,7 +44,9 @@ export default function CreateHabitScreen() {
   const createHabit = useCreateHabit();
 
   const [name, setName] = useState('');
+  const [habitType, setHabitType] = useState<HabitType>('GENERAL');
   const [frequency, setFrequency] = useState<FrequencyType>('DAILY');
+  const [isPublic, setIsPublic] = useState(true);
   const [error, setError] = useState('');
 
   const handleCreate = async () => {
@@ -44,7 +57,12 @@ export default function CreateHabitScreen() {
 
     setError('');
     try {
-      await createHabit.mutateAsync({ name: name.trim(), frequencyType: frequency });
+      await createHabit.mutateAsync({
+        name: name.trim(),
+        frequencyType: frequency,
+        habitType,
+        isPublic,
+      });
       router.back();
     } catch (err: any) {
       const message = err.response?.data?.message ?? 'Failed to create habit';
@@ -101,6 +119,37 @@ export default function CreateHabitScreen() {
               error={error}
             />
 
+            {/* Habit Type selector */}
+            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>HABIT TYPE</Text>
+            <View style={styles.typeGrid}>
+              {HABIT_TYPES.map((t) => (
+                <Pressable
+                  key={t.value}
+                  style={[
+                    styles.typeChip,
+                    { backgroundColor: isDark ? colors.background : '#F8F8FE', borderColor: colors.border },
+                    habitType === t.value ? styles.frequencyChipActive : undefined,
+                  ]}
+                  onPress={() => setHabitType(t.value)}
+                >
+                  <Ionicons
+                    name={t.icon}
+                    size={15}
+                    color={habitType === t.value ? '#FFFFFF' : colors.textSecondary}
+                  />
+                  <Text
+                    style={[
+                      styles.typeLabel,
+                      { color: colors.text },
+                      habitType === t.value ? styles.frequencyLabelActive : undefined,
+                    ]}
+                  >
+                    {t.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
             {/* Frequency selector */}
             <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>HOW OFTEN?</Text>
             <View style={styles.frequencyGrid}>
@@ -130,6 +179,20 @@ export default function CreateHabitScreen() {
                   </Text>
                 </Pressable>
               ))}
+            </View>
+
+            {/* Privacy selector */}
+            <View style={[styles.privacyContainer, { backgroundColor: isDark ? colors.background : '#F8F8FE', borderColor: colors.border }]}>
+              <View>
+                <Text style={[styles.privacyTitle, { color: colors.text }]}>Public Habit</Text>
+                <Text style={[styles.privacySubtitle, { color: colors.textSecondary }]}>Visible to friends on feed</Text>
+              </View>
+              <Switch
+                value={isPublic}
+                onValueChange={setIsPublic}
+                trackColor={{ false: isDark ? colors.border : '#E8DEFF', true: '#6C5CE7' }}
+                thumbColor="#FFFFFF"
+              />
             </View>
 
             {/* Create button */}
@@ -269,6 +332,28 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     marginLeft: 4,
   },
+  typeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 20,
+  },
+  typeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 12,
+    backgroundColor: '#F8F8FE',
+    borderWidth: 2,
+    borderColor: '#EDEDF5',
+    gap: 6,
+  },
+  typeLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#6B6B80',
+  },
   frequencyGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -301,6 +386,27 @@ const styles = StyleSheet.create({
   },
   frequencyLabelActive: {
     color: '#FFFFFF',
+  },
+
+  // Privacy
+  privacyContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    borderWidth: 2,
+    marginBottom: 24,
+  },
+  privacyTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  privacySubtitle: {
+    fontSize: 13,
+    fontWeight: '500',
+    marginTop: 2,
   },
 
   // Create button

@@ -1,7 +1,10 @@
+import React, { memo } from 'react';
 import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withSpring, withSequence } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useSessionStore } from '@/store/useSessionStore';
 import type { HabitRespond } from '@/types';
 
 const FREQUENCY_LABELS: Record<string, string> = {
@@ -22,13 +25,23 @@ interface HabitCardProps {
   habit: HabitRespond;
   streak: number;
   checkedInToday: boolean;
-  onCheckIn: (habitId: string) => void;
+  onCheckIn: (habit: HabitRespond) => void;
   onPress: (habitId: string) => void;
   checkInLoading?: boolean;
   index: number;
 }
 
-export function HabitCard({
+const HABIT_TYPE_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
+  WORKOUT: 'barbell',
+  RUNNING: 'walk',
+  READING: 'book',
+  MEDITATION: 'leaf',
+  WATER: 'water',
+  CUSTOM: 'options',
+  GENERAL: 'play',
+};
+
+export const HabitCard = memo(function HabitCard({
   habit,
   streak,
   checkedInToday,
@@ -40,6 +53,9 @@ export function HabitCard({
   const { colors, isDark } = useTheme();
   const scale = useSharedValue(1);
   const checkScale = useSharedValue(1);
+  
+  const activeSession = useSessionStore((state) => state.sessions[habit.id]);
+  const isSessionActive = !!activeSession;
 
   const cardAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -49,16 +65,18 @@ export function HabitCard({
     transform: [{ scale: checkScale.value }],
   }));
 
-  const handleCheckIn = () => {
-    if (checkedInToday || checkInLoading) return;
+  const handleAction = () => {
     checkScale.value = withSequence(
       withSpring(1.3, { damping: 4, stiffness: 300 }),
       withSpring(1, { damping: 8, stiffness: 200 })
     );
-    onCheckIn(habit.id);
+    onCheckIn(habit);
   };
 
   const accentColor = FREQUENCY_COLORS[habit.frequencyType] ?? '#6C5CE7';
+  const type = habit.habitType || 'GENERAL';
+  const actionIcon = checkedInToday ? 'checkmark' : (HABIT_TYPE_ICONS[type] || 'play');
+  const readingPage = habit.config?.currentPage;
 
   return (
     <Animated.View entering={FadeIn.duration(400).delay(index * 80)}>
@@ -76,11 +94,29 @@ export function HabitCard({
             <View style={styles.topRow}>
               <View style={styles.nameContainer}>
                 <Text style={[styles.habitName, { color: colors.text }]} numberOfLines={1}>{habit.name}</Text>
-                <View style={[styles.frequencyBadge, { backgroundColor: accentColor + '18' }]}>
-                  <Ionicons name="repeat" size={12} color={accentColor} />
-                  <Text style={[styles.frequencyText, { color: accentColor }]}>
-                    {FREQUENCY_LABELS[habit.frequencyType]}
-                  </Text>
+                <View style={styles.badgesRow}>
+                  <View style={[styles.frequencyBadge, { backgroundColor: accentColor + '18' }]}>
+                    <Ionicons name="repeat" size={12} color={accentColor} />
+                    <Text style={[styles.frequencyText, { color: accentColor }]}>
+                      {FREQUENCY_LABELS[habit.frequencyType]}
+                    </Text>
+                  </View>
+
+                  {type !== 'GENERAL' && (
+                    <View style={[styles.typeBadge, { backgroundColor: isDark ? '#2B2B3C' : '#F0EDFF' }]}>
+                      <Text style={[styles.typeText, { color: colors.primary }]}>
+                        {type.toLowerCase()}
+                      </Text>
+                    </View>
+                  )}
+
+                  {type === 'READING' && readingPage ? (
+                    <View style={[styles.typeBadge, { backgroundColor: isDark ? '#3D2B13' : '#FEF3C7' }]}>
+                      <Text style={[styles.typeText, { color: '#D97706' }]}>
+                        p. {readingPage}
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
               </View>
 
@@ -92,43 +128,56 @@ export function HabitCard({
               ) : null}
             </View>
 
-            {/* Bottom row: status + check-in button */}
+            {/* Bottom row: status + session action button */}
             <View style={styles.bottomRow}>
               <View style={styles.statusRow}>
                 <Ionicons
-                  name={checkedInToday ? 'checkmark-circle' : 'time'}
+                  name={checkedInToday ? 'checkmark-circle' : 'play-circle-outline'}
                   size={16}
-                  color={checkedInToday ? '#00B894' : colors.textSecondary}
+                  color={checkedInToday ? '#00B894' : colors.primary}
                 />
                 <Text style={[styles.statusText, { color: colors.textSecondary }, checkedInToday ? styles.statusDone : undefined]}>
-                  {checkedInToday ? 'Done today!' : 'Waiting for check-in'}
+                  {checkedInToday ? 'Done today! (tap for +)' : 'Start session'}
                 </Text>
               </View>
 
               <Pressable
-                onPress={handleCheckIn}
-                disabled={checkedInToday || checkInLoading}
+                onPress={handleAction}
+                disabled={checkInLoading}
                 style={({ pressed }) => [
                   styles.checkButton,
                   checkedInToday ? styles.checkButtonDone : undefined,
-                  !checkedInToday && pressed ? styles.checkButtonPressed : undefined,
+                  pressed ? styles.checkButtonPressed : undefined,
                 ]}
               >
                 <Animated.View style={checkAnimatedStyle}>
                   {checkInLoading ? (
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
-                    <Ionicons name="checkmark" size={22} color="#FFFFFF" />
+                    <Ionicons name={actionIcon} size={20} color="#FFFFFF" />
                   )}
                 </Animated.View>
               </Pressable>
             </View>
           </View>
+          
+          {/* Active Session Overlay */}
+          {isSessionActive && (
+            <BlurView intensity={isDark ? 30 : 60} tint={isDark ? 'dark' : 'light'} style={styles.blurOverlay}>
+              <View style={styles.blurContent}>
+                <Ionicons name="time" size={32} color={colors.primary} style={styles.blurIcon} />
+                <Text style={[styles.blurTitle, { color: colors.text }]}>You are in session</Text>
+                <Pressable style={styles.blurButton} onPress={() => onCheckIn(habit)}>
+                  <Text style={styles.blurButtonText}>Resume</Text>
+                </Pressable>
+              </View>
+            </BlurView>
+          )}
         </Animated.View>
       </Pressable>
     </Animated.View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {
@@ -169,6 +218,12 @@ const styles = StyleSheet.create({
     color: '#2D2D3A',
     marginBottom: 5,
   },
+  badgesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
   frequencyBadge: {
     flexDirection: 'row',
     alignSelf: 'flex-start',
@@ -177,6 +232,17 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 10,
     gap: 4,
+  },
+  typeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  typeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   frequencyText: {
     fontSize: 11,
@@ -236,5 +302,38 @@ const styles = StyleSheet.create({
   },
   checkButtonPressed: {
     transform: [{ scale: 0.9 }],
+  },
+  blurOverlay: {
+    ...StyleSheet.absoluteFill,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 20,
+    overflow: 'hidden',
+    zIndex: 10,
+  },
+  blurContent: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    padding: 16,
+    borderRadius: 16,
+  },
+  blurIcon: {
+    marginBottom: 4,
+  },
+  blurTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 12,
+  },
+  blurButton: {
+    backgroundColor: '#6C5CE7',
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  blurButtonText: {
+    color: '#FFF',
+    fontWeight: '700',
+    fontSize: 14,
   },
 });

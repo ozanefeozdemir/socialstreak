@@ -6,6 +6,7 @@ import com.example.back.exception.ResourceNotFoundException;
 import com.example.back.exception.UnauthorizedActionException;
 import com.example.back.mapper.HabitMapper;
 import com.example.back.model.Habit;
+import com.example.back.model.HabitType;
 import com.example.back.model.User;
 import com.example.back.repository.HabitRepository;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +43,9 @@ public class HabitService {
         User user = userService.findUserById(userId);
         Habit habit = habitMapper.requestToEntity(habitRequest);
         habit.setUser(user);
+        if (habit.getHabitType() == null) {
+            habit.setHabitType(com.example.back.model.HabitType.GENERAL);
+        }
         return habitMapper.entityToRespond(habitRepository.save(habit));
     }
 
@@ -51,6 +55,12 @@ public class HabitService {
 
         habit.setName(habitRequest.name());
         habit.setFrequencyType(habitRequest.frequencyType());
+        if (habitRequest.habitType() != null) {
+            habit.setHabitType(habitRequest.habitType());
+        }
+        if (habitRequest.config() != null) {
+            habit.setConfig(habitRequest.config());
+        }
 
         return habitMapper.entityToRespond(habitRepository.save(habit));
     }

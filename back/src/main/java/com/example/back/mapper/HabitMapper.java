@@ -11,6 +11,8 @@ import java.util.List;
 @Mapper(componentModel = "spring")
 public interface HabitMapper {
 
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "user", ignore = true)
     @Mapping(target = "archived", ignore = true)
     Habit requestToEntity(HabitRequest request);
