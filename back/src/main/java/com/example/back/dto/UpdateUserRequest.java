@@ -6,7 +6,8 @@ import jakarta.validation.constraints.NotBlank;
 public record UpdateUserRequest(
         @NotBlank @Email String email,
         @NotBlank String username,
-        @NotBlank String timezone
+        @NotBlank String timezone,
+        Boolean privacySearchable
 
 ) {
 }

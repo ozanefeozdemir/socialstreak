@@ -326,16 +326,56 @@
 
 ---
 
+## Session 11 — 2026-09-16 (Real-Time Scalable User Search, Elasticsearch 9.4.2 & RabbitMQ Event-Driven Sync)
+
+### What was done
+- ✅ **Search Engine Data Model & Elasticsearch Architecture**:
+  - Integrated `spring-boot-starter-data-elasticsearch` with Spring Data Elasticsearch.
+  - Created `UserDocument` entity mapped to `users` index:
+    - `username` using `Search_As_You_Type` (Edge N-gram + 2-gram + 3-gram) for instant keystroke prefix matching.
+    - `fullName` using `Text` (standard analyzer) supporting Lucene Levenshtein Automaton for typo tolerance / fuzzy search.
+    - `mutualFriendsCount` integer field for dynamic relevance score boosting.
+    - `privacySearchable` boolean filter flag.
+  - Created `UserSearchRepository` extending `ElasticsearchRepository<UserDocument, String>`.
+  - Built `SearchService` implementing a composite bool query:
+    - **Filter Context** (cached bitsets without score computation): `privacySearchable == true`, `id != searcherId`, and optional blocked users list.
+    - **Query Context** (scoring): exact username match (10x boost), prefix search-as-you-type (5x boost), fuzzy full name (2x boost).
+    - **Function Score Query**: multiplies query match score with $\log(1 + 0.1 \times \text{mutualFriendsCount})$ to naturally elevate mutual friends to the top of search results.
+- ✅ **Asynchronous Event-Driven Synchronization via RabbitMQ**:
+  - Added `spring-boot-starter-amqp` with `RabbitMQConfig` declaring direct exchange `search.sync.exchange`, durable queue `search.sync.queue`, and routing key `search.sync.key`.
+  - Created `RabbitMQProducer` and lightweight `UserSyncPayload`.
+  - Integrated producer into `AuthService.signup` and `UserService.updateUser` to trigger non-blocking indexing on new registrations and profile updates without degrading user HTTP response times.
+  - Built `SearchSyncConsumer` listening to `search.sync.queue`, transforming user updates, and persisting `UserDocument` to Elasticsearch.
+- ✅ **Rate Limiting & Safe API Exposure**:
+  - Integrated `Bucket4j` (`bucket4j-core` and `bucket4j-redis`) for token-bucket rate limiting.
+  - Built `RateLimiterService` enforcing a 20 requests/minute limit per authenticated user on discovery searches.
+  - Built `UserSearchController` (`GET /api/user/search?q={query}&page={0}&size={20}`) returning a lightweight, secure `UserSearchDto` (`id`, `username`, `name`, `surname`, `mutualFriendsCount`).
+  - Resolves user data leak: no emails, passwords, creation dates, or timezones are exposed.
+- ✅ **Privacy & Discovery Toggle**:
+  - Added `privacySearchable` boolean column to PostgreSQL `User` entity (default `true`), `UserRespond`, and `UpdateUserRequest`.
+  - Allows users to opt out of discovery from the frontend settings.
+- ✅ **Docker Infrastructure & Volume Consolidation**:
+  - Re-architected Docker Compose under project name `socialstreak` bringing all services (PostgreSQL, Redis, RabbitMQ, Elasticsearch) into a unified cluster.
+  - Mapped `pgdata` volume to existing `src_pgdata` external volume, guaranteeing zero data loss for existing users, habits, and streak histories.
+  - Upgraded Docker Elasticsearch image to `elasticsearch:9.4.2` matching the client library (`elasticsearch-java:9.4.2`), resolving the HTTP 400 `compatible-with=9` mismatch.
+- ✅ **Verification**:
+  - Backend compile: `./gradlew compileJava` passed.
+  - Test suites: Updated `UserServiceTest` for `privacySearchable` constructor signature.
+  - Runtime health: Tested full Spring Boot boot sequence (starts cleanly in 3.4s, connects to Postgres, Redis, RabbitMQ, and verifies Elasticsearch `users` index). Tested `GET /api/user/search` via Tomcat DispatcherServlet.
+
+---
+
 ## Backlog / Future Work
-- [ ] BACKEND GET /api/users DATA LEAKAGE, OPTIMIZE QUERY AND RESPONSE DTO !!!!
-
-
+- [x] BACKEND GET /api/users DATA LEAKAGE: Resolved via dedicated `GET /api/user/search` endpoint returning minimal `UserSearchDto` + `PublicUserRespond`.
+- [ ] Connect Discover Page search input (`front/app/(tabs)/discover.tsx` / `hooks/useUsers.ts`) to `GET /api/user/search?q={query}` instead of `GET /api/user`.
+- [ ] Add one-time bulk sync runner or admin endpoint to index pre-existing PostgreSQL users into Elasticsearch.
+- [ ] Add privacy toggle switch in Settings page (`app/settings/privacy.tsx` / `edit-profile.tsx`) to update `privacySearchable`.
 - [ ] Most common / trending habits list in Discover tab (habit templates/suggestions)
 - [ ] Add pagination, searchbar and filtering to habits list view
 - [ ] Add subtle timer (3 Hours left) to habit cards in habits list view to remind user check in and colorize the timer green to red according to remaining time. 
 - [ ] Public/private habit visibility toggle (backend + frontend)
 - [ ] Delete Habit button in habit card
-- [ ] Cheer post in feed (Currently it works but it is not instant. We should add it to rabbitmq)
+- [ ] Cheer post in feed (Currently it works but it is not instant. We should leverage RabbitMQ for real-time queueing)
 - [ ] Streak related reward or ranking system to keep user motivated.
 - [ ] Profile inspection with clicking on friends in feed or profile.
 - [ ] All streaks are calculated by day, but we should implement it by habit type. For example, for the weekly habit type, the streak should be calculated by week.
@@ -343,7 +383,7 @@
 - [ ] Add pagination for API endpoints (Users, Feed, Habits, Check-ins).
 - [x] Persistent Session State: When user starts a session, closing modal keeps timer running. Blur overlays for active habits, active sessions list.
 - [ ] Notification Integration: Add live ticking clocks in notification bar (requires custom native code / `notifee`).
-- [ ] Discover page enhancements: algorithmic friend recommendations and trending habits list.
+- [x] Discover page enhancements: algorithmic friend search and mutual friends boost using Elasticsearch.
 - [x] Profile Day Streak modal with highest streak per habit
 - [x] Habit type metadata (backend schema change)
 - [x] Check-in metadata & HabitSession entity (backend schema change)
@@ -357,3 +397,4 @@
 - [ ] Streak leaderboard
 - [x] Offline support (React Query persistence + Mutation Queue)
 - [ ] App Store / Play Store submission
+

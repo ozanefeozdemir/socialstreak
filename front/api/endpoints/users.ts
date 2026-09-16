@@ -1,9 +1,14 @@
 import apiClient from '../client';
-import type { UserRespond, UpdateUserRequest, ChangePasswordRequest } from '@/types';
+import type { UserRespond, PublicUserRespond, UpdateUserRequest, ChangePasswordRequest } from '@/types';
 
 export const usersApi = {
-  getAll: async (): Promise<UserRespond[]> => {
-    const response = await apiClient.get<UserRespond[]>('/user');
+  getMe: async (): Promise<UserRespond> => {
+    const response = await apiClient.get<UserRespond>('/user/me');
+    return response.data;
+  },
+
+  getAll: async (): Promise<PublicUserRespond[]> => {
+    const response = await apiClient.get<PublicUserRespond[]>('/user');
     return response.data;
   },
 

@@ -6,6 +6,8 @@ import com.example.back.exception.ResourceNotFoundException;
 import com.example.back.exception.UserAlreadyExistsException;
 import com.example.back.model.User;
 import com.example.back.repository.UserRepository;
+import com.example.back.messaging.RabbitMQProducer;
+import com.example.back.messaging.payload.UserSyncPayload;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -21,6 +23,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final RabbitMQProducer rabbitMQProducer;
 
     @Transactional(readOnly = true)
     public User findUserByEmail(String email){
@@ -72,8 +75,20 @@ public class UserService {
         updateUser.setEmail(newUser.email());
         updateUser.setUsername(newUser.username());
         updateUser.setTimezone(newUser.timezone());
+        if (newUser.privacySearchable() != null) {
+            updateUser.setPrivacySearchable(newUser.privacySearchable());
+        }
 
-        return userRepository.save(updateUser);
+        User savedUser = userRepository.save(updateUser);
+        rabbitMQProducer.publishUserSyncEvent("user.updated", UserSyncPayload.builder()
+                .id(savedUser.getId())
+                .username(savedUser.getUsername())
+                .name(savedUser.getName())
+                .surname(savedUser.getSurname())
+                .privacySearchable(savedUser.getPrivacySearchable())
+                .build());
+
+        return savedUser;
     }
 
     @Transactional

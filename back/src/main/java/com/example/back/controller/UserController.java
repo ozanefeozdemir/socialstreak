@@ -2,6 +2,7 @@ package com.example.back.controller;
 
 import com.example.back.dto.ChangePasswordRequest;
 import com.example.back.dto.UpdateUserRequest;
+import com.example.back.dto.PublicUserRespond;
 import com.example.back.dto.UserRespond;
 import com.example.back.exception.UnauthorizedActionException;
 import com.example.back.mapper.UserMapper;
@@ -35,9 +36,14 @@ public class UserController {
         return ResponseEntity.ok(userMapper.entityToRespond(userService.findUserById(id)));
     }
 
+    @GetMapping("/me")
+    public ResponseEntity<UserRespond> getMe(@AuthenticationPrincipal UserPrincipal principal){
+        return ResponseEntity.ok(userMapper.entityToRespond(userService.findUserById(principal.getId())));
+    }
+
     @GetMapping
-    public ResponseEntity<List<UserRespond>> getAllUsers(){
-        return ResponseEntity.ok(userMapper.entitiesToResponds(userService.findAllUsers()));
+    public ResponseEntity<List<PublicUserRespond>> getAllUsers(){
+        return ResponseEntity.ok(userMapper.entitiesToPublicResponds(userService.findAllUsers()));
     }
 
     @PreAuthorize("#id == principal.id")

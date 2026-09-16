@@ -7,8 +7,11 @@ import com.example.back.exception.UserAlreadyExistsException;
 import com.example.back.model.RefreshToken;
 import com.example.back.model.User;
 import com.example.back.repository.RefreshTokenRepository;
+import com.example.back.mapper.UserMapper;
 import com.example.back.repository.UserRepository;
 import com.example.back.security.JwtService;
+import com.example.back.messaging.RabbitMQProducer;
+import com.example.back.messaging.payload.UserSyncPayload;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -29,6 +32,8 @@ public class AuthService {
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
+    private final UserMapper userMapper;
+    private final RabbitMQProducer rabbitMQProducer;
 
     @Transactional
     public AuthRespond login(LoginRequest request){
@@ -39,9 +44,9 @@ public class AuthService {
         User user = userRepository.findByEmail(request.email()).orElseThrow(() ->
                 new UsernameNotFoundException("Email is not registered: " + request.email()));
 
-        String accessToken = jwtService.generateToken(user.getEmail());
+        String accessToken = jwtService.generateToken(user.getId().toString(), "USER");
         String refreshToken = createAndSaveRefreshToken(user);
-        return new AuthRespond(accessToken, refreshToken, user.getUsername());
+        return new AuthRespond(accessToken, refreshToken, userMapper.entityToRespond(user));
     }
 
     @Transactional
@@ -60,9 +65,17 @@ public class AuthService {
 
         userRepository.save(user);
 
-        String accessToken = jwtService.generateToken(user.getEmail());
+        rabbitMQProducer.publishUserSyncEvent("user.created", UserSyncPayload.builder()
+                .id(user.getId())
+                .username(user.getUsername())
+                .name(user.getName())
+                .surname(user.getSurname())
+                .privacySearchable(user.getPrivacySearchable())
+                .build());
+
+        String accessToken = jwtService.generateToken(user.getId().toString(), "USER");
         String refreshToken = createAndSaveRefreshToken(user);
-        return new AuthRespond(accessToken, refreshToken, user.getUsername());
+        return new AuthRespond(accessToken, refreshToken, userMapper.entityToRespond(user));
     }
 
     @Transactional
@@ -72,9 +85,9 @@ public class AuthService {
         }
 
         // 1. Verify token signature & expiry claim via JWT parser
-        String email;
+        String userId;
         try {
-            email = jwtService.extractRefreshTokenUsername(requestRefreshToken);
+            userId = jwtService.extractRefreshTokenUserId(requestRefreshToken);
         } catch (Exception ex) {
             throw new BadCredentialsException("Invalid or expired refresh token");
         }
@@ -90,7 +103,7 @@ public class AuthService {
         }
 
         User user = storedToken.getUser();
-        if (!user.getEmail().equalsIgnoreCase(email)) {
+        if (!user.getId().toString().equals(userId)) {
             refreshTokenRepository.delete(storedToken);
             throw new BadCredentialsException("Token user mismatch");
         }
@@ -99,10 +112,10 @@ public class AuthService {
         refreshTokenRepository.delete(storedToken);
 
         // 5. Generate new access token and new refresh token
-        String newAccessToken = jwtService.generateToken(user.getEmail());
+        String newAccessToken = jwtService.generateToken(user.getId().toString(), "USER");
         String newRefreshToken = createAndSaveRefreshToken(user);
 
-        return new AuthRespond(newAccessToken, newRefreshToken, user.getUsername());
+        return new AuthRespond(newAccessToken, newRefreshToken, userMapper.entityToRespond(user));
     }
 
     @Transactional
@@ -113,7 +126,7 @@ public class AuthService {
     }
 
     private String createAndSaveRefreshToken(User user) {
-        String tokenString = jwtService.generateRefreshToken(user.getEmail());
+        String tokenString = jwtService.generateRefreshToken(user.getId().toString());
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setToken(tokenString);
         refreshToken.setUser(user);

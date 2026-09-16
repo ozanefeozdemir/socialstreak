@@ -2,12 +2,12 @@ import React from 'react';
 import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
-import type { UserRespond } from '@/types';
+import type { PublicUserRespond } from '@/types';
 
 export type UserRelationStatus = 'none' | 'sent' | 'received' | 'friend';
 
 interface UserSearchResultProps {
-  user: UserRespond;
+  user: PublicUserRespond;
   status: UserRelationStatus;
   sentRequestId?: string;
   receivedRequestId?: string;

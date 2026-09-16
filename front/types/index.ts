@@ -22,7 +22,7 @@ export interface RegisterRequest {
 export interface AuthRespond {
   token: string;
   refreshToken: string;
-  username: string;
+  user: UserRespond;
 }
 
 export interface RefreshTokenRequest {
@@ -33,6 +33,14 @@ export interface RefreshTokenRequest {
 export interface UserRespond {
   id: string;
   email: string;
+  username: string;
+  name: string;
+  surname: string;
+  timezone: string;
+}
+
+export interface PublicUserRespond {
+  id: string;
   username: string;
   name: string;
   surname: string;
@@ -101,15 +109,15 @@ export interface CheckInRespond {
 // ── Friendship ────────────────────────────────────
 export interface FriendshipRespond {
   id: string;
-  friend: UserRespond;
+  friend: PublicUserRespond;
   createdAt: string; // ISO 8601 Instant
 }
 
 // ── Friend Request ────────────────────────────────
 export interface FriendRequestRespond {
   id: string;
-  sender: UserRespond;
-  receiver: UserRespond;
+  sender: PublicUserRespond;
+  receiver: PublicUserRespond;
   createdAt: string; // ISO 8601 Instant
 }
 
@@ -118,7 +126,7 @@ export interface FeedItemRespond {
   id: string;
   checkInDate: string; // YYYY-MM-DD
   createdAt: string;   // ISO 8601 Instant
-  user: UserRespond;
+  user: PublicUserRespond;
   habit: HabitRespond;
   streak: number;
   session?: HabitSessionRespond;

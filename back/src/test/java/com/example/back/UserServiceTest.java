@@ -79,7 +79,7 @@ class UserServiceTest {
 
     @Test
     void updateUser_WhenValidRequest_ShouldUpdateAndReturnUser() {
-        UpdateUserRequest request = new UpdateUserRequest("new@example.com", "newuser", "GMT+3");
+        UpdateUserRequest request = new UpdateUserRequest("new@example.com", "newuser", "GMT+3", true);
         when(userRepository.findById(testUserId)).thenReturn(Optional.of(testUser));
         when(userRepository.existsByEmail("new@example.com")).thenReturn(false);
         when(userRepository.existsByUsername("newuser")).thenReturn(false);
@@ -96,7 +96,7 @@ class UserServiceTest {
 
     @Test
     void updateUser_WhenEmailAlreadyExists_ShouldThrowException() {
-        UpdateUserRequest request = new UpdateUserRequest("existing@example.com", "testuser", "UTC");
+        UpdateUserRequest request = new UpdateUserRequest("existing@example.com", "testuser", "UTC", true);
         when(userRepository.findById(testUserId)).thenReturn(Optional.of(testUser));
         when(userRepository.existsByEmail("existing@example.com")).thenReturn(true);
 

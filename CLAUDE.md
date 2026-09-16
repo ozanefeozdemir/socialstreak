@@ -17,6 +17,9 @@ SocialStreak/
 | Framework         | Spring Boot 4.1.0 (Java 21)        |
 | Database          | PostgreSQL 16 (Alpine)             |
 | Cache             | Redis 7 (Alpine)                   |
+| Search Engine     | Elasticsearch 9.4.2 (Alpine)        |
+| Message Broker    | RabbitMQ 3 (Alpine, Management)    |
+| Rate Limiting     | Bucket4j 8.10.1                     |
 | Auth              | JWT (jjwt 0.12.6) + Spring Security|
 | ORM               | Spring Data JPA / Hibernate        |
 | Mapping           | MapStruct 1.6.3                    |
@@ -28,9 +31,11 @@ SocialStreak/
 ## Infrastructure (Docker Compose)
 
 ```yaml
-# back/src/docker-compose.yaml
-postgres:  localhost:5432  (db: socialstreak, user: dev, pass: dev)
-redis:     localhost:6379
+# back/src/docker-compose.yaml (project: socialstreak)
+postgres:       localhost:5432  (db: socialstreak, user: dev, pass: dev) [Volume: src_pgdata]
+redis:          localhost:6379
+rabbitmq:       localhost:5672, management: 15672 (user: dev, pass: dev)
+elasticsearch:  localhost:9200, 9300 (ES 9.4.2, single-node, security disabled)
 ```
 
 Spring Boot runs on **localhost:8080** (default).
@@ -50,6 +55,16 @@ Spring Boot runs on **localhost:8080** (default).
 | surname      | String    | not null                    |
 | timezone     | String    | nullable                    |
 | createdAt    | Instant   | auto (CreationTimestamp)    |
+| privacySearchable | Boolean | default true, not null (Discovery toggle) |
+
+### UserDocument (Elasticsearch: `users` index)
+| Field | Elasticsearch Type | Constraints / Purpose |
+|---|---|---|
+| id | Keyword | User UUID |
+| username | Search_As_You_Type | Prefix / Edge N-Gram matching for live search |
+| fullName | Text (analyzer: standard) | Combined name + surname with Fuzzy typo-tolerance |
+| mutualFriendsCount | Integer | Dynamic relevance score boost multiplier |
+| privacySearchable | Boolean | Boolean filter to exclude private profiles |
 
 ### Habit (`habits`)
 | Field         | Type          | Constraints                 |
@@ -245,15 +260,19 @@ GENERAL | WORKOUT | RUNNING | READING | MEDITATION | WATER | CUSTOM
 
 ### Users — `/api/user` (AUTHENTICATED)
 
-| Method | Path                     | Request Body                         | Response        | Notes                   |
-|--------|--------------------------|--------------------------------------|-----------------|-------------------------|
-| GET    | `/api/user`              | —                                    | `UserRespond[]` | All users (no pagination) |
-| GET    | `/api/user/{id}`         | —                                    | `UserRespond`   | PreAuthorize: own ID only |
-| PUT    | `/api/user/{id}`         | `{ email, username, timezone }`      | 204 No Content  | PreAuthorize: own ID only |
-| PATCH  | `/api/user/{id}/password`| `{ currentPassword, newPassword }`   | 200 OK          | PreAuthorize: own ID only |
-| DELETE | `/api/user/{id}`         | —                                    | 204 No Content  | PreAuthorize: own ID only |
+| Method | Path                     | Request Body                         | Response            | Notes                   |
+|--------|--------------------------|--------------------------------------|---------------------|-------------------------|
+| GET    | `/api/user`              | —                                    | `PublicUserRespond[]` | All users (public safe projection) |
+| GET    | `/api/user/me`           | —                                    | `UserRespond`       | Authenticated user's profile |
+| GET    | `/api/user/{id}`         | —                                    | `UserRespond`       | PreAuthorize: own ID only |
+| GET    | `/api/user/search`       | `?q={query}&page={0}&size={20}`      | `UserSearchDto[]`   | Elasticsearch fuzzy + prefix search, mutual friend boost, Bucket4j rate-limited (20 req/min, returns 429) |
+| PUT    | `/api/user/{id}`         | `{ email, username, timezone, privacySearchable }` | 204 No Content | PreAuthorize: own ID only (triggers async RabbitMQ index sync) |
+| PATCH  | `/api/user/{id}/password`| `{ currentPassword, newPassword }`   | 200 OK              | PreAuthorize: own ID only |
+| DELETE | `/api/user/{id}`         | —                                    | 204 No Content      | PreAuthorize: own ID only |
 
-**UserRespond**: `{ id, email, username, name, surname, timezone }`
+**UserRespond**: `{ id, email, username, name, surname, timezone, privacySearchable }`
+**PublicUserRespond**: `{ id, username, name, surname }`
+**UserSearchDto**: `{ id, username, name, surname, mutualFriendsCount }`
 
 ---
 

@@ -8,7 +8,7 @@ public record FeedItemRespond(
         UUID id,
         LocalDate checkInDate,
         Instant createdAt,
-        UserRespond user,
+        PublicUserRespond user,
         HabitRespond habit,
         int streak,
         HabitSessionRespond session

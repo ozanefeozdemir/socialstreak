@@ -5,8 +5,8 @@ import java.util.UUID;
 
 public record FriendRequestRespond(
         UUID id,
-        UserRespond sender,
-        UserRespond receiver,
+        PublicUserRespond sender,
+        PublicUserRespond receiver,
         Instant createdAt
 ) {
 }

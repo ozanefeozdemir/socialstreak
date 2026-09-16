@@ -10,7 +10,8 @@ public record UserRespond(
         String username,
         String name,
         String surname,
-        String timezone
+        String timezone,
+        Boolean privacySearchable
 ) {
 
 }

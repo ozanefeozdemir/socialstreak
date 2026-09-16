@@ -26,29 +26,30 @@ public class JwtService {
     @Value("${jwt.refresh-expiration:2592000000}")
     private long refreshExp;
 
-    public String generateToken(String username){
+    public String generateToken(String userId, String role){
         return Jwts.builder()
-                .subject(username)
+                .subject(userId)
+                .claim("role", role)
                 .issuedAt(new Date(System.currentTimeMillis()))
                 .expiration(new Date(System.currentTimeMillis() + jwtExp))
                 .signWith(getSigningKey())
                 .compact();
     }
 
-    public String generateRefreshToken(String username){
+    public String generateRefreshToken(String userId){
         return Jwts.builder()
-                .subject(username)
+                .subject(userId)
                 .issuedAt(new Date(System.currentTimeMillis()))
                 .expiration(new Date(System.currentTimeMillis() + refreshExp))
                 .signWith(getRefreshSigningKey())
                 .compact();
     }
 
-    public String extractUsername(String token){
+    public String extractUserId(String token){
         return extractClaim(token, Claims::getSubject);
     }
 
-    public String extractRefreshTokenUsername(String token){
+    public String extractRefreshTokenUserId(String token){
         Claims claims = Jwts.parser()
                 .verifyWith(getRefreshSigningKey())
                 .build()
@@ -71,8 +72,9 @@ public class JwtService {
     }
 
     public boolean isTokenValid(String token, UserDetails userDetails) {
-        final String username = extractUsername(token);
-        return username.equals(userDetails.getUsername()) && !isTokenExpired(token);
+        final String userId = extractUserId(token);
+        // We compare the userId with userDetails.getUsername() because we will update UserPrincipal to return ID as username
+        return userId.equals(userDetails.getUsername()) && !isTokenExpired(token);
     }
 
     private boolean isTokenExpired(String token) {

@@ -7,7 +7,7 @@ import java.util.UUID;
 
 public record FriendshipRespond(
         UUID id,
-        UserRespond friend,
+        PublicUserRespond friend,
         Instant createdAt
 ) {
 }

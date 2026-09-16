@@ -2,6 +2,7 @@ package com.example.back.service;
 
 import com.example.back.dto.FeedItemRespond;
 import com.example.back.dto.HabitRespond;
+import com.example.back.dto.PublicUserRespond;
 import com.example.back.dto.UserRespond;
 import com.example.back.mapper.HabitMapper;
 import com.example.back.mapper.HabitSessionMapper;
@@ -82,7 +83,7 @@ public class FeedService {
             List<LocalDate> allDates = habitCheckInDatesMap.getOrDefault(habitId, Collections.emptyList());
             int streak = calculateStreakForDate(allDates, checkIn.getCheckInDate());
 
-            UserRespond userDto = userMapper.entityToRespond(checkIn.getHabit().getUser());
+            PublicUserRespond userDto = userMapper.entityToPublicRespond(checkIn.getHabit().getUser());
             HabitRespond habitDto = habitMapper.entityToRespond(checkIn.getHabit());
 
             com.example.back.model.HabitSession session = checkInSessionMap.get(checkIn.getId());

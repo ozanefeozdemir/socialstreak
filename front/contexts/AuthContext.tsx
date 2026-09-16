@@ -65,10 +65,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           getRefreshToken(),
           getStoredUser(),
         ]);
+        let finalUser = storedUser;
         const hasSession = !!(token || refreshToken);
+
+        if (hasSession && !finalUser) {
+          try {
+            finalUser = await usersApi.getMe();
+            await saveStoredUser(finalUser);
+          } catch {
+            // Ignore network errors, maintain session
+          }
+        }
+
         setState({
           token,
-          user: storedUser,
+          user: finalUser,
           isLoggedIn: hasSession,
           isLoading: false,
         });
@@ -85,25 +96,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await Promise.all([
       saveToken(response.token),
       response.refreshToken ? saveRefreshToken(response.refreshToken) : Promise.resolve(),
+      saveStoredUser(response.user),
     ]);
-
-    // Fetch full user profile matching username
-    let loggedInUser: UserRespond | null = null;
-    try {
-      const users = await usersApi.getAll();
-      loggedInUser =
-        users.find((u) => u.username.toLowerCase() === response.username.toLowerCase()) || null;
-    } catch {
-      // Ignore if offline/error
-    }
-
-    if (loggedInUser) {
-      await saveStoredUser(loggedInUser);
-    }
 
     setState({
       token: response.token,
-      user: loggedInUser,
+      user: response.user,
       isLoggedIn: true,
       isLoading: false,
     });
@@ -116,25 +114,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await Promise.all([
       saveToken(response.token),
       response.refreshToken ? saveRefreshToken(response.refreshToken) : Promise.resolve(),
+      saveStoredUser(response.user),
     ]);
-
-    // Fetch full user profile matching registered username
-    let registeredUser: UserRespond | null = null;
-    try {
-      const users = await usersApi.getAll();
-      registeredUser =
-        users.find((u) => u.username.toLowerCase() === response.username.toLowerCase()) || null;
-    } catch {
-      // Ignore if offline/error
-    }
-
-    if (registeredUser) {
-      await saveStoredUser(registeredUser);
-    }
 
     setState({
       token: response.token,
-      user: registeredUser,
+      user: response.user,
       isLoggedIn: true,
       isLoading: false,
     });

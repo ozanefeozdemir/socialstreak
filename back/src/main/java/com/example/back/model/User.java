@@ -40,5 +40,6 @@ public class User {
     @CreationTimestamp
     private Instant createdAt;
 
-
+    @Column(nullable = false, columnDefinition = "boolean default true")
+    private Boolean privacySearchable = true;
 }
