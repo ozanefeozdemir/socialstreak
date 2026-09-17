@@ -452,20 +452,52 @@ The Discover screen uses a top segmented pill switcher with two primary views:
 
 ---
 
-## Habit Types System
+## Habit Taxonomy & Specialized Session Engines
 
-Each habit has a `habitType` determining which fields and session behaviors are used. The backend implements this via `HabitType` enum + `config` JSONB column on `habits`, and polymorphic `sessionData` JSONB on `habit_sessions`.
+SocialStreak incorporates a deep, science-backed habit tracking taxonomy and tactile interactive session engines:
 
-| Type | Enum Value | Session Data / Config |
-|------|-----------|------------------------|
-| 📚 Reading | `READING` | `bookTitle`, `currentPage`, `startPage`, `endPage`, `pagesRead`, `totalPages` |
-| 🏃 Running | `RUNNING` | `distanceKm`, `durationSeconds`, `avgPace`, `notes` |
-| 💪 Workout | `WORKOUT` | `bodyParts` (Chest, Shoulders, Arms, etc.), `durationSeconds`, `notes` |
-| 🧘 Meditation | `MEDITATION` | `durationSeconds`, `style`, `postMood` |
-| 💧 Water | `WATER` | `glasses`, `dailyGoal` |
-| ✨ General / Custom | `GENERAL` / `CUSTOM` | Flexible metric + value pairs |
+### A. 10-Category Deep Taxonomy (50 Subcategories)
+Defined in `front/constants/HabitCatalog.ts`:
+- **Fitness & Athletics** (`FITNESS`): Gym & Weightlifting, Running & Jogging, Calisthenics & Bodyweight, Swimming & Aquatics, Cycling.
+- **Mental & Mindfulness** (`MINDFULNESS`): Meditation, Breathwork, Journaling & Reflection, Gratitude, Nature Walks.
+- **Intellect & Learning** (`LEARNING`): Deep Reading, Language Learning, Technical Coding, Writing & Essays, Online Courses.
+- **Health & Biohacking** (`HEALTH`): Hydration, Sleep Hygiene, Cold Exposure / Sauna, Fasting Protocol, Posture & Mobility.
+- **Nutrition & Fuel** (`HEALTH`): Clean Eating, Meal Prep, Calorie & Macro Tracking, No Sugar Challenge, Home Cooking.
+- **Career & Productivity** (`PRODUCTIVITY`): Deep Work Sprint, Inbox Zero, Daily Planning, Public Speaking, Goal Review.
+- **Creativity & Art** (`CREATIVE`): Music Practice, Drawing & Sketching, Photography, Creative Writing, Digital Art.
+- **Social & Connection** (`SOCIAL`): Call Family, Networking, Active Listening, Random Acts of Kindness, Quality Partner Time.
+- **Mindset & Discipline** (`DISCIPLINE`): Dopamine Detox, Urge Surfing / Craving, Wake Up Early, No Social Media, Cold Showers.
+- **Home & Lifestyle** (`SLEEP` / `FINANCE`): Decluttering, Plant Care, Budget Tracking, Minimalist Living, Cleaning Ritual.
 
-> **Implementation**: `HabitType` enum and `config` JSONB on `habits` table; `HabitSession` entity with `session_data` JSONB on `habit_sessions` table. Creating a session automatically anchors or advances today's `CheckIn` calendar streak, and enriches friends' social feed cards with rich session metrics.
+### B. 38 Science-Backed Habit Blueprints (`HabitCatalog.ts`)
+- Pre-configured routines complete with archetypes, target goals, units, recommended time of day, scientific benefits, consistency tips, and search keywords.
+- Explorable via `HabitDiscoveryModal` featuring live search, category pills, and 1-tap/2-tap adoption.
+- Uses an in-place `Animated.View` overlay (`StyleSheet.absoluteFill` + `zIndex: 999`) with backdrop dismiss to prevent iOS nested Modal white screen conflicts.
+
+### C. 7 Specialized Interactive Session Engines (`HabitSessionModal.tsx`)
+Each archetype replaces the generic timer with bespoke, tactile interactive controls:
+
+| Archetype | Enum Value | Interactive Controls & Features |
+|-----------|-----------|----------------------------------|
+| 🏋️ Strength / Gym | `WORKOUT` | Split Presets (Push, Pull, Legs, Upper, Lower, Full Body), Muscle Checklist, `+ Set` counter chips, Floating Rest Countdown Timer (30s–120s) |
+| 🏃 Cardio & Running | `CARDIO` | Distance chips (1, 3, 5, 10 km), live Pace Calculator (`min/km`), Surface selector (Road, Trail, Treadmill, Track) |
+| 📚 Deep Reading | `READING` | Book title memory, start & end page inputs with live `+X pages` delta counter, memorable quote capture |
+| 🧘 Mindfulness & Breathwork | `BREATHWORK` | Box Breathing (4-4-4-4) & 4-7-8 relaxing rhythms, Reanimated pulsating glowing breath orb, post-session mood |
+| 💧 Hydration | `HYDRATION` | Rapid water bottle taps (+250ml, +500ml, +750ml), visual fluid cylinder fill progress |
+| 💻 Skill Practice | `SKILL` | Topic input, rapid repetition counters (`+1`, `+5`) |
+| ⏱️ Standard Timer | `CHECKLIST` | Clean stopwatch focus timer and fast check-in |
+
+### D. Category-to-Engine Consistency Engine (`CATEGORY_CONFIG`)
+- Automatically defaults to the sensible session engine, icon, target value, and unit upon category selection.
+- Subcategory selection automatically auto-switches to the matching engine (e.g. "Running & Jogging" under Fitness sets `CARDIO` with `5 km`).
+- Restricts selectable session engines to only compatible ones (e.g. Mindfulness will never offer Gym/Strength).
+
+### E. Session Cancellation & Discarding
+- **Zustand Store**: `cancelSession(habitId: string)` in `useSessionStore.ts` cleanly purges in-progress session data without recording.
+- **In-Modal Header**: "Discard" red text action + down-chevron "Minimize" button (to keep the session running in the background).
+- **In-Modal Footer**: "Cancel & Discard Session" button below "Complete Session".
+- **Confirmation Alert**: Protects against accidental cancellation.
+- **Dashboard Active Sessions**: 1-tap `close-circle` discard button on each active session pill in `ActiveSessionsList.tsx`.
 
 ---
 
@@ -534,17 +566,20 @@ front/
 │   └── useUsers.ts
 ├── components/
 │   ├── ui/                       → Design system (Button, Input, Card) (DONE ✅)
-│   ├── habit/                    → HabitCard, HabitList, StreakCounter, HabitStreakCard (DONE ✅)
+│   ├── habit/                    → HabitCard, HabitList, StreakCounter, HabitDiscoveryModal (DONE ✅)
 │   ├── feed/                     → FeedItem, FeedSummaryBanner (DONE ✅)
 │   ├── friend/                   → FriendCard, UserSearchResult, FriendRequestCard (DONE ✅)
-│   ├── session/                  → HabitSessionModal (Workout splits, Running pace, Reading pages, etc.) (DONE ✅)
+│   ├── session/                  → HabitSessionModal, ActiveSessionsList (DONE ✅)
 │   └── common/                   → LoadingScreen, EmptyState, ErrorBoundary
+├── store/
+│   └── useSessionStore.ts        → Zustand persistent session store (Active sessions & cancel) (DONE ✅)
 ├── contexts/
 │   ├── AuthContext.tsx            → Auth state (token, user, isLoggedIn)
 │   ├── ThemeContext.tsx           → Theme state (light, dark, system, colors)
 │   └── QueryProvider.tsx          → TanStack React Query provider
 ├── constants/
 │   ├── Colors.ts                  → Color palette
+│   ├── HabitCatalog.ts            → 10 categories, 50 subcategories, 38 blueprints (DONE ✅)
 │   ├── Theme.ts                   → Design tokens (spacing, radii, shadows)
 │   └── Typography.ts              → Font sizes, weights
 └── utils/

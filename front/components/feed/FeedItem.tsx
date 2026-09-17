@@ -110,11 +110,22 @@ export const FeedItem = React.memo(function FeedItem({ item, index }: FeedItemPr
         {/* Habit Card Body */}
         <View style={[styles.habitContainer, { backgroundColor: isDark ? colors.background : '#F9F8FE', borderColor: colors.border }]}>
           <View style={styles.habitMain}>
-            <View style={[styles.checkIconWrap, isDark && { backgroundColor: '#064E3B' }]}>
-              <Ionicons name="checkmark-circle" size={24} color="#00B894" />
+            <View
+              style={[
+                styles.checkIconWrap,
+                { backgroundColor: (habit.config?.color || '#00B894') + '1E' },
+              ]}
+            >
+              <Ionicons
+                name={(habit.config?.icon as any) || 'checkmark-circle'}
+                size={22}
+                color={habit.config?.color || '#00B894'}
+              />
             </View>
             <View style={styles.habitInfo}>
-              <Text style={[styles.actionPrompt, { color: colors.textSecondary }]}>Completed habit</Text>
+              <Text style={[styles.actionPrompt, { color: colors.textSecondary }]}>
+                {habit.config?.subCategory ? `Crushed ${habit.config.subCategory}` : 'Completed habit'}
+              </Text>
               <Text style={[styles.habitName, { color: colors.text }]} numberOfLines={1}>
                 {habit.name}
               </Text>
@@ -149,6 +160,14 @@ export const FeedItem = React.memo(function FeedItem({ item, index }: FeedItemPr
                   </View>
                 ) : null}
 
+                {item.session.sessionData?.setsCount != null && item.session.sessionData.setsCount > 0 && (
+                  <View style={[styles.sessionChip, { backgroundColor: isDark ? '#3D201A' : '#FFE8DF' }]}>
+                    <Text style={[styles.sessionChipText, { color: '#E17055' }]}>
+                      {item.session.sessionData.setsCount} sets
+                    </Text>
+                  </View>
+                )}
+
                 {Array.isArray(item.session.sessionData?.bodyParts) &&
                   item.session.sessionData.bodyParts.map((bp: string) => (
                     <View key={bp} style={[styles.sessionChip, { backgroundColor: isDark ? '#15314B' : '#E0F2FE' }]}>
@@ -167,6 +186,14 @@ export const FeedItem = React.memo(function FeedItem({ item, index }: FeedItemPr
                   </View>
                 )}
 
+                {item.session.sessionData?.avgPace != null && (
+                  <View style={[styles.sessionChip, { backgroundColor: isDark ? '#103926' : '#DCFCE7' }]}>
+                    <Text style={[styles.sessionChipText, { color: '#16A34A' }]}>
+                      {item.session.sessionData.avgPace}
+                    </Text>
+                  </View>
+                )}
+
                 {item.session.sessionData?.pagesRead != null && (
                   <View style={[styles.sessionChip, { backgroundColor: isDark ? '#3D2B13' : '#FEF3C7' }]}>
                     <Ionicons name="book-outline" size={12} color="#D97706" />
@@ -175,7 +202,46 @@ export const FeedItem = React.memo(function FeedItem({ item, index }: FeedItemPr
                     </Text>
                   </View>
                 )}
+
+                {item.session.sessionData?.distractionsDefeated != null && item.session.sessionData.distractionsDefeated > 0 && (
+                  <View style={[styles.sessionChip, { backgroundColor: isDark ? '#2E204A' : '#EDE9FE' }]}>
+                    <Text style={[styles.sessionChipText, { color: '#6C5CE7' }]}>
+                      {item.session.sessionData.distractionsDefeated} urges resisted 🛡️
+                    </Text>
+                  </View>
+                )}
+
+                {item.session.sessionData?.consumedMl != null && (
+                  <View style={[styles.sessionChip, { backgroundColor: isDark ? '#15314B' : '#E0F2FE' }]}>
+                    <Ionicons name="water-outline" size={12} color="#0984E3" />
+                    <Text style={[styles.sessionChipText, { color: '#0984E3' }]}>
+                      {item.session.sessionData.consumedMl} ml
+                    </Text>
+                  </View>
+                )}
+
+                {item.session.sessionData?.mood != null && (
+                  <View style={[styles.sessionChip, { backgroundColor: isDark ? '#103926' : '#DCFCE7' }]}>
+                    <Text style={[styles.sessionChipText, { color: '#16A34A' }]}>
+                      {item.session.sessionData.mood} 😌
+                    </Text>
+                  </View>
+                )}
+
+                {item.session.sessionData?.urgesResisted != null && (
+                  <View style={[styles.sessionChip, { backgroundColor: isDark ? '#3D201A' : '#FFE8EC' }]}>
+                    <Text style={[styles.sessionChipText, { color: '#E84393' }]}>
+                      {item.session.sessionData.urgesResisted} cravings conquered 🛡️
+                    </Text>
+                  </View>
+                )}
               </View>
+
+              {item.session.sessionData?.mission ? (
+                <Text style={[styles.sessionNotes, { color: colors.text, fontWeight: '600' }]} numberOfLines={1}>
+                  Mission: "{item.session.sessionData.mission}"
+                </Text>
+              ) : null}
 
               {item.session.notes ? (
                 <Text style={[styles.sessionNotes, { color: colors.textSecondary }]} numberOfLines={2}>

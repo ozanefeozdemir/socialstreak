@@ -1,8 +1,72 @@
 // TypeScript interfaces matching backend DTOs
 
-// ── Enums ─────────────────────────────────────────
+// ── Enums & Taxonomy ─────────────────────────────
 export type FrequencyType = 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'CUSTOM';
 export type HabitType = 'GENERAL' | 'WORKOUT' | 'RUNNING' | 'READING' | 'MEDITATION' | 'WATER' | 'CUSTOM';
+
+export type HabitCategory =
+  | 'FITNESS'
+  | 'MINDFULNESS'
+  | 'HEALTH'
+  | 'PRODUCTIVITY'
+  | 'LEARNING'
+  | 'SLEEP'
+  | 'CREATIVE'
+  | 'FINANCE'
+  | 'SOCIAL'
+  | 'DISCIPLINE';
+
+export type SessionArchetype =
+  | 'WORKOUT'
+  | 'CARDIO'
+  | 'READING'
+  | 'POMODORO'
+  | 'BREATHWORK'
+  | 'SKILL'
+  | 'HYDRATION'
+  | 'DISCIPLINE'
+  | 'CHECKLIST';
+
+export type TimeOfDay = 'MORNING' | 'AFTERNOON' | 'EVENING' | 'ANYTIME';
+
+export interface HabitConfig {
+  category?: HabitCategory;
+  subCategory?: string;
+  sessionArchetype?: SessionArchetype;
+  icon?: string;
+  color?: string;
+  targetValue?: number;
+  targetUnit?: string;
+  timeOfDay?: TimeOfDay;
+  tagline?: string;
+  benefits?: string[];
+  quickTips?: string[];
+  // Specific tracking state
+  currentBook?: string;
+  currentPage?: number;
+  totalPages?: number;
+  dailyGoalMl?: number;
+  [key: string]: any;
+}
+
+export interface HabitCatalogPreset {
+  id: string;
+  name: string;
+  category: HabitCategory;
+  subCategory: string;
+  habitType: HabitType;
+  sessionArchetype: SessionArchetype;
+  icon: string;
+  color: string;
+  targetValue: number;
+  targetUnit: string;
+  timeOfDay: TimeOfDay;
+  frequencyType: FrequencyType;
+  tagline: string;
+  benefits: string[];
+  quickTips: string[];
+  searchKeywords: string[];
+}
 
 // ── Auth ──────────────────────────────────────────
 export interface LoginRequest {
@@ -63,7 +127,7 @@ export interface HabitRequest {
   name: string;
   frequencyType: FrequencyType;
   habitType?: HabitType;
-  config?: Record<string, any>;
+  config?: HabitConfig;
   isPublic?: boolean;
 }
 
@@ -72,7 +136,7 @@ export interface HabitRespond {
   name: string;
   frequencyType: FrequencyType;
   habitType: HabitType;
-  config?: Record<string, any>;
+  config?: HabitConfig;
   archived: boolean;
   isPublic: boolean;
   createdAt: string; // ISO 8601 Instant

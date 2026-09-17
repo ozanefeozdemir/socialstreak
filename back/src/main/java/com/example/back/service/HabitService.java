@@ -61,6 +61,9 @@ public class HabitService {
         if (habitRequest.config() != null) {
             habit.setConfig(habitRequest.config());
         }
+        if (habitRequest.isPublic() != null) {
+            habit.setIsPublic(habitRequest.isPublic());
+        }
 
         return habitMapper.entityToRespond(habitRepository.save(habit));
     }

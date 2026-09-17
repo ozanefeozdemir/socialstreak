@@ -19,6 +19,7 @@ interface SessionStore {
   resumeSession: (habitId: string) => void;
   updateSessionData: (habitId: string, data: Partial<SessionState>) => void;
   finishSession: (habitId: string) => void;
+  cancelSession: (habitId: string) => void;
   getSession: (habitId: string) => SessionState | undefined;
 }
 
@@ -101,6 +102,14 @@ export const useSessionStore = create<SessionStore>()(
       },
 
       finishSession: (habitId) => {
+        set((state) => {
+          const newSessions = { ...state.sessions };
+          delete newSessions[habitId];
+          return { sessions: newSessions };
+        });
+      },
+
+      cancelSession: (habitId) => {
         set((state) => {
           const newSessions = { ...state.sessions };
           delete newSessions[habitId];

@@ -10,13 +10,26 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
-import Animated, { FadeIn, FadeInDown, FadeInUp } from 'react-native-reanimated';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeInUp,
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSequence,
+  withRepeat,
+  Easing,
+} from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useCreateSession } from '@/hooks/useSessions';
 import { useSessionStore } from '@/store/useSessionStore';
-import type { HabitRespond, HabitType } from '@/types';
+import type { HabitRespond, HabitType, SessionArchetype } from '@/types';
+
+type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
 
 interface HabitSessionModalProps {
   visible: boolean;
@@ -28,19 +41,34 @@ const MUSCLE_GROUPS = [
   { id: 'CHEST', label: 'Chest', icon: 'barbell-outline' },
   { id: 'BACK', label: 'Back', icon: 'shield-outline' },
   { id: 'SHOULDERS', label: 'Shoulders', icon: 'fitness-outline' },
-  { id: 'ARMS', label: 'Arms', icon: 'flash-outline' },
-  { id: 'LEGS', label: 'Legs', icon: 'walk-outline' },
+  { id: 'BICEPS', label: 'Biceps', icon: 'flash-outline' },
+  { id: 'TRICEPS', label: 'Triceps', icon: 'flash-outline' },
+  { id: 'QUADS', label: 'Quads', icon: 'walk-outline' },
+  { id: 'HAMSTRINGS', label: 'Hamstrings', icon: 'walk-outline' },
   { id: 'CORE', label: 'Core / Abs', icon: 'sparkles-outline' },
 ];
 
 const SPLIT_PRESETS: { label: string; icon: string; parts: string[] }[] = [
-  { label: 'Push', icon: '🔥', parts: ['CHEST', 'SHOULDERS', 'ARMS'] },
-  { label: 'Pull', icon: '⚡', parts: ['BACK', 'ARMS'] },
-  { label: 'Legs', icon: '🦵', parts: ['LEGS'] },
-  { label: 'Full Body', icon: '🌟', parts: ['CHEST', 'BACK', 'SHOULDERS', 'ARMS', 'LEGS', 'CORE'] },
+  { label: 'Push', icon: '🔥', parts: ['CHEST', 'SHOULDERS', 'TRICEPS'] },
+  { label: 'Pull', icon: '⚡', parts: ['BACK', 'BICEPS'] },
+  { label: 'Legs', icon: '🦵', parts: ['QUADS', 'HAMSTRINGS'] },
+  { label: 'Upper', icon: '💪', parts: ['CHEST', 'BACK', 'SHOULDERS', 'BICEPS', 'TRICEPS'] },
+  { label: 'Lower', icon: '🏃', parts: ['QUADS', 'HAMSTRINGS', 'CORE'] },
+  { label: 'Full Body', icon: '🌟', parts: ['CHEST', 'BACK', 'SHOULDERS', 'QUADS', 'CORE'] },
 ];
 
-const MEDITATION_PRESETS = [5, 10, 15, 20]; // minutes
+const RUNNING_SURFACES = [
+  { id: 'ROAD', label: 'Road', icon: 'navigate-outline' },
+  { id: 'TRAIL', label: 'Trail', icon: 'trail-sign-outline' },
+  { id: 'TREADMILL', label: 'Treadmill', icon: 'walk-outline' },
+  { id: 'TRACK', label: 'Track', icon: 'repeat-outline' },
+];
+
+const BREATHWORK_MODES = [
+  { id: 'BOX', label: 'Box 4-4-4-4', inhale: 4, hold1: 4, exhale: 4, hold2: 4 },
+  { id: 'RELAX', label: 'Relax 4-7-8', inhale: 4, hold1: 7, exhale: 8, hold2: 0 },
+  { id: 'FREE', label: 'Mindful Flow', inhale: 5, hold1: 0, exhale: 5, hold2: 0 },
+];
 
 export function HabitSessionModal({ visible, habit, onClose }: HabitSessionModalProps) {
   const { colors, isDark } = useTheme();
@@ -48,92 +76,146 @@ export function HabitSessionModal({ visible, habit, onClose }: HabitSessionModal
 
   const store = useSessionStore();
   const session = habit ? store.sessions[habit.id] : undefined;
-  
-  // ── Timer State ─────────────────────────────────────
+
+  // Resolve session archetype
+  const archetype: SessionArchetype =
+    habit?.config?.sessionArchetype ||
+    (habit?.habitType === 'WORKOUT'
+      ? 'WORKOUT'
+      : habit?.habitType === 'RUNNING'
+      ? 'CARDIO'
+      : habit?.habitType === 'READING'
+      ? 'READING'
+      : habit?.habitType === 'MEDITATION'
+      ? 'BREATHWORK'
+      : habit?.habitType === 'WATER'
+      ? 'HYDRATION'
+      : habit?.habitType === 'CUSTOM'
+      ? 'SKILL'
+      : 'CHECKLIST');
+
+  // ── General Timer State ──────────────────────────────
   const [secondsElapsed, setSecondsElapsed] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // ── Activity-Specific State ─────────────────────────
-  // We'll initialize from sessionData if it exists, otherwise defaults.
   const sd = session?.sessionData || {};
 
-  // Workout
+  // ── 1. Workout State ──
   const [selectedBodyParts, setSelectedBodyParts] = useState<string[]>(sd.bodyParts || []);
-  const [workoutIntensity, setWorkoutIntensity] = useState<'LOW' | 'MODERATE' | 'HIGH'>(sd.intensity || 'MODERATE');
+  const [workoutIntensity, setWorkoutIntensity] = useState<'WARMUP' | 'SOLID' | 'BEAST'>(sd.intensity || 'SOLID');
+  const [setsCount, setSetsCount] = useState<number>(sd.setsCount || 0);
+  const [restSecondsRemaining, setRestSecondsRemaining] = useState<number | null>(null);
+  const restTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Running
+  // ── 2. Cardio State ──
   const [distanceKm, setDistanceKm] = useState(sd.distanceKm ? String(sd.distanceKm) : '');
+  const [runningSurface, setRunningSurface] = useState<string>(sd.surface || 'ROAD');
+  const [rpeEffort, setRpeEffort] = useState<number>(sd.rpe || 7);
 
-  // Reading
+  // ── 3. Reading State ──
   const configStartPage = habit?.config?.currentPage ? Number(habit.config.currentPage) : 1;
   const configBook = habit?.config?.currentBook || habit?.name || '';
   const [bookTitle, setBookTitle] = useState(sd.bookTitle || configBook);
   const [startPage, setStartPage] = useState(sd.startPage ? String(sd.startPage) : String(configStartPage));
   const [endPage, setEndPage] = useState(sd.endPage ? String(sd.endPage) : String(configStartPage));
+  const [memorableQuote, setMemorableQuote] = useState(sd.quote || '');
 
-  // Meditation
-  const [meditationMood, setMeditationMood] = useState<'CALM' | 'FOCUSED' | 'ENERGIZED'>(sd.mood || 'CALM');
+  // ── 4. Breathwork State ──
+  const [breathworkMode, setBreathworkMode] = useState<'BOX' | 'RELAX' | 'FREE'>(sd.breathMode || 'BOX');
+  const [breathPhase, setBreathPhase] = useState<'Inhale' | 'Hold' | 'Exhale'>('Inhale');
+  const [breathCountdown, setBreathCountdown] = useState(4);
+  const [postMood, setPostMood] = useState<'CALM' | 'FOCUSED' | 'ENERGIZED'>(sd.mood || 'CALM');
+  const orbScale = useSharedValue(1);
 
-  // Water
-  const [waterGlasses, setWaterGlasses] = useState(sd.glasses || 1);
+  // ── 5. Skill State ──
+  const [skillTask, setSkillTask] = useState(sd.skillTask || '');
+  const [repsCount, setRepsCount] = useState<number>(sd.repsCount || 0);
 
-  // General Notes
+  // ── 6. Hydration State ──
+  const defaultTarget = habit?.config?.targetValue || 2500;
+  const [consumedMl, setConsumedMl] = useState<number>(sd.consumedMl || 250);
+
+  // ── Notes & Errors ──
   const [notes, setNotes] = useState(session?.notes || '');
   const [error, setError] = useState('');
 
-  // Sync state to store whenever it changes, so it persists if modal closes
+  // Synchronize state with background session store
   useEffect(() => {
     if (habit && session) {
       store.updateSessionData(habit.id, {
         notes,
         sessionData: {
+          archetype,
           bodyParts: selectedBodyParts,
           intensity: workoutIntensity,
+          setsCount,
           distanceKm: distanceKm ? parseFloat(distanceKm) : undefined,
+          surface: runningSurface,
+          rpe: rpeEffort,
           bookTitle,
           startPage: parseInt(startPage) || 1,
           endPage: parseInt(endPage) || 1,
-          mood: meditationMood,
-          glasses: waterGlasses,
-        }
+          quote: memorableQuote,
+          breathMode: breathworkMode,
+          mood: postMood,
+          skillTask,
+          repsCount,
+          consumedMl,
+        },
       });
     }
-  }, [notes, selectedBodyParts, workoutIntensity, distanceKm, bookTitle, startPage, endPage, meditationMood, waterGlasses]);
+  }, [
+    notes,
+    selectedBodyParts,
+    workoutIntensity,
+    setsCount,
+    distanceKm,
+    runningSurface,
+    rpeEffort,
+    bookTitle,
+    startPage,
+    endPage,
+    memorableQuote,
+    breathworkMode,
+    postMood,
+    skillTask,
+    repsCount,
+    consumedMl,
+  ]);
 
-  // Reset state when modal opens with a NEW habit
+  // Initialize fresh session when modal opens
   useEffect(() => {
     if (visible && habit) {
       setError('');
-      // If a session exists, we don't overwrite local state completely because useState already picked it up during render.
-      // However, if we need to ensure it's fresh when opening a different habit:
       if (!store.sessions[habit.id]) {
-        // Automatically start the session if it's not running
         store.startSession(habit);
-        setSelectedBodyParts([]);
-        setWorkoutIntensity('MODERATE');
+        // Defaults
+        setSelectedBodyParts(habit.config?.subCategory === 'Gym & Lifting' ? ['CHEST', 'SHOULDERS', 'TRICEPS'] : []);
+        setWorkoutIntensity('SOLID');
+        setSetsCount(0);
         setDistanceKm('');
         const initialPage = habit.config?.currentPage ? Number(habit.config.currentPage) : 1;
         setStartPage(String(initialPage));
         setEndPage(String(initialPage));
         setBookTitle(habit.config?.currentBook || habit.name || '');
-        setWaterGlasses(1);
+        setConsumedMl(250);
         setNotes('');
       } else {
-        const existingSd = store.sessions[habit.id].sessionData || {};
-        setSelectedBodyParts(existingSd.bodyParts || []);
-        setWorkoutIntensity(existingSd.intensity || 'MODERATE');
-        setDistanceKm(existingSd.distanceKm ? String(existingSd.distanceKm) : '');
-        setStartPage(existingSd.startPage ? String(existingSd.startPage) : String(habit.config?.currentPage || 1));
-        setEndPage(existingSd.endPage ? String(existingSd.endPage) : String(habit.config?.currentPage || 1));
-        setBookTitle(existingSd.bookTitle || habit.config?.currentBook || habit.name || '');
-        setMeditationMood(existingSd.mood || 'CALM');
-        setWaterGlasses(existingSd.glasses || 1);
+        const esd = store.sessions[habit.id].sessionData || {};
+        setSelectedBodyParts(esd.bodyParts || []);
+        setWorkoutIntensity(esd.intensity || 'SOLID');
+        setSetsCount(esd.setsCount || 0);
+        setDistanceKm(esd.distanceKm ? String(esd.distanceKm) : '');
+        setStartPage(esd.startPage ? String(esd.startPage) : String(habit.config?.currentPage || 1));
+        setEndPage(esd.endPage ? String(esd.endPage) : String(habit.config?.currentPage || 1));
+        setBookTitle(esd.bookTitle || habit.config?.currentBook || habit.name || '');
+        setConsumedMl(esd.consumedMl || 250);
         setNotes(store.sessions[habit.id].notes || '');
       }
     }
   }, [visible, habit?.id]);
 
-  // Timer engine relying on store state
+  // Main Timer engine
   useEffect(() => {
     if (session?.isRunning) {
       timerRef.current = setInterval(() => {
@@ -150,6 +232,81 @@ export function HabitSessionModal({ visible, habit, onClose }: HabitSessionModal
     };
   }, [session?.isRunning, session?.startTime, session?.accumulatedTime]);
 
+  // Rest Timer engine (Workout)
+  useEffect(() => {
+    if (restSecondsRemaining !== null && restSecondsRemaining > 0) {
+      restTimerRef.current = setInterval(() => {
+        setRestSecondsRemaining((prev) => (prev !== null && prev > 1 ? prev - 1 : null));
+      }, 1000);
+    } else {
+      if (restTimerRef.current) clearInterval(restTimerRef.current);
+    }
+    return () => {
+      if (restTimerRef.current) clearInterval(restTimerRef.current);
+    };
+  }, [restSecondsRemaining]);
+
+  // Breathwork engine (Reanimated Orb animation loop)
+  useEffect(() => {
+    if (archetype !== 'BREATHWORK' || !session?.isRunning) return;
+
+    const mode = BREATHWORK_MODES.find((m) => m.id === breathworkMode) || BREATHWORK_MODES[0];
+    let isCancelled = false;
+
+    const runCycle = async () => {
+      while (!isCancelled) {
+        // Inhale
+        setBreathPhase('Inhale');
+        orbScale.value = withTiming(1.45, {
+          duration: mode.inhale * 1000,
+          easing: Easing.inOut(Easing.ease),
+        });
+        await new Promise((r) => setTimeout(r, mode.inhale * 1000));
+        if (isCancelled) break;
+
+        // Hold 1
+        if (mode.hold1 > 0) {
+          setBreathPhase('Hold');
+          orbScale.value = withRepeat(
+            withSequence(
+              withTiming(1.48, { duration: 600 }),
+              withTiming(1.42, { duration: 600 })
+            ),
+            Math.floor(mode.hold1 / 1.2),
+            true
+          );
+          await new Promise((r) => setTimeout(r, mode.hold1 * 1000));
+          if (isCancelled) break;
+        }
+
+        // Exhale
+        setBreathPhase('Exhale');
+        orbScale.value = withTiming(1.0, {
+          duration: mode.exhale * 1000,
+          easing: Easing.inOut(Easing.ease),
+        });
+        await new Promise((r) => setTimeout(r, mode.exhale * 1000));
+        if (isCancelled) break;
+
+        // Hold 2
+        if (mode.hold2 > 0) {
+          setBreathPhase('Hold');
+          await new Promise((r) => setTimeout(r, mode.hold2 * 1000));
+        }
+      }
+    };
+
+    runCycle();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [archetype, breathworkMode, session?.isRunning]);
+
+  const animatedOrbStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: orbScale.value }],
+  }));
+
   const toggleTimer = () => {
     if (!habit) return;
     if (session?.isRunning) {
@@ -159,12 +316,8 @@ export function HabitSessionModal({ visible, habit, onClose }: HabitSessionModal
     }
   };
 
-  const resetTimer = () => {
-    if (!habit) return;
-    // To reset, we can clear the session and start over
-    store.finishSession(habit.id);
-    store.startSession(habit);
-    setSecondsElapsed(0);
+  const startRestTimer = (seconds: number) => {
+    setRestSecondsRemaining(seconds);
   };
 
   const formatTimer = (totalSecs: number) => {
@@ -179,18 +332,7 @@ export function HabitSessionModal({ visible, habit, onClose }: HabitSessionModal
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Workout body parts helpers
-  const toggleBodyPart = (id: string) => {
-    setSelectedBodyParts((prev) =>
-      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
-    );
-  };
-
-  const applySplitPreset = (parts: string[]) => {
-    setSelectedBodyParts(parts);
-  };
-
-  // Pace calculation for Running
+  // Pace calculation
   const calculatePace = () => {
     const dist = parseFloat(distanceKm);
     if (!dist || dist <= 0 || secondsElapsed <= 0) return null;
@@ -200,46 +342,48 @@ export function HabitSessionModal({ visible, habit, onClose }: HabitSessionModal
     return `${paceMin}'${paceSec.toString().padStart(2, '0')}" /km`;
   };
 
-  // Reading pages delta
   const pagesReadDelta = Math.max(0, (parseInt(endPage) || 0) - (parseInt(startPage) || 0));
 
-  // Submit session
+  // Finish session
   const handleFinish = async () => {
     if (!habit) return;
     setError('');
 
-    // Stop timer
     store.finishSession(habit.id);
 
-    const type: HabitType = habit.habitType || 'GENERAL';
-    const sessionData: Record<string, any> = { type };
+    const payloadSessionData: Record<string, any> = {
+      archetype,
+      ...sd,
+    };
 
-    if (type === 'WORKOUT') {
-      if (selectedBodyParts.length === 0) {
-        setError('Select at least one body part for your workout');
-        return;
-      }
-      sessionData.bodyParts = selectedBodyParts;
-      sessionData.intensity = workoutIntensity;
-    } else if (type === 'RUNNING') {
+    if (archetype === 'WORKOUT') {
+      payloadSessionData.bodyParts = selectedBodyParts;
+      payloadSessionData.intensity = workoutIntensity;
+      payloadSessionData.setsCount = setsCount;
+    } else if (archetype === 'CARDIO') {
       const dist = parseFloat(distanceKm);
-      if (dist > 0) {
-        sessionData.distanceKm = dist;
-        const pace = calculatePace();
-        if (pace) sessionData.avgPace = pace;
-      }
-    } else if (type === 'READING') {
+      if (dist > 0) payloadSessionData.distanceKm = dist;
+      const pace = calculatePace();
+      if (pace) payloadSessionData.avgPace = pace;
+      payloadSessionData.surface = runningSurface;
+      payloadSessionData.rpe = rpeEffort;
+    } else if (archetype === 'READING') {
       const start = parseInt(startPage) || 1;
       const end = parseInt(endPage) || start;
-      sessionData.bookTitle = bookTitle.trim() || habit.name;
-      sessionData.startPage = start;
-      sessionData.endPage = end;
-      sessionData.pagesRead = Math.max(0, end - start);
-    } else if (type === 'MEDITATION') {
-      sessionData.mood = meditationMood;
-    } else if (type === 'WATER') {
-      sessionData.glasses = waterGlasses;
-      sessionData.volumeMl = waterGlasses * 250;
+      payloadSessionData.bookTitle = bookTitle.trim() || habit.name;
+      payloadSessionData.startPage = start;
+      payloadSessionData.endPage = end;
+      payloadSessionData.pagesRead = Math.max(0, end - start);
+      if (memorableQuote.trim()) payloadSessionData.quote = memorableQuote.trim();
+    } else if (archetype === 'BREATHWORK') {
+      payloadSessionData.breathMode = breathworkMode;
+      payloadSessionData.mood = postMood;
+    } else if (archetype === 'SKILL') {
+      payloadSessionData.skillTask = skillTask.trim();
+      payloadSessionData.repsCount = repsCount;
+    } else if (archetype === 'HYDRATION') {
+      payloadSessionData.consumedMl = consumedMl;
+      payloadSessionData.glasses = Math.round(consumedMl / 250);
     }
 
     try {
@@ -247,7 +391,7 @@ export function HabitSessionModal({ visible, habit, onClose }: HabitSessionModal
         habitId: habit.id,
         data: {
           durationSeconds: secondsElapsed > 0 ? secondsElapsed : undefined,
-          sessionData,
+          sessionData: payloadSessionData,
           notes: notes.trim() || undefined,
         },
       });
@@ -257,9 +401,33 @@ export function HabitSessionModal({ visible, habit, onClose }: HabitSessionModal
     }
   };
 
+  const handleConfirmCancel = () => {
+    Alert.alert(
+      'Cancel Session?',
+      'Discard this session? Your timer and any logged progress for this session will not be saved.',
+      [
+        { text: 'Keep Going', style: 'cancel' },
+        {
+          text: 'Discard Session',
+          style: 'destructive',
+          onPress: handleCancelSession,
+        },
+      ]
+    );
+  };
+
+  const handleCancelSession = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    if (restTimerRef.current) clearInterval(restTimerRef.current);
+    if (habit) {
+      store.cancelSession(habit.id);
+    }
+    onClose();
+  };
+
   if (!habit) return null;
 
-  const type: HabitType = habit.habitType || 'GENERAL';
+  const habitColor = habit.config?.color || colors.primary;
 
   return (
     <Modal visible={visible} animationType="slide" transparent presentationStyle="overFullScreen">
@@ -268,22 +436,66 @@ export function HabitSessionModal({ visible, habit, onClose }: HabitSessionModal
         style={styles.modalOverlay}
       >
         <View style={[styles.sheet, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          {/* Header */}
+          {/* Top Bar Header */}
           <View style={styles.header}>
             <View style={styles.headerInfo}>
               <Text style={[styles.habitTitle, { color: colors.text }]} numberOfLines={1}>
                 {habit.name}
               </Text>
-              <View style={[styles.typeBadge, { backgroundColor: colors.primary + '18' }]}>
-                <Text style={[styles.typeBadgeText, { color: colors.primary }]}>
-                  {type} SESSION
+              <View style={[styles.typeBadge, { backgroundColor: habitColor + '18' }]}>
+                <Ionicons
+                  name={
+                    archetype === 'WORKOUT'
+                      ? 'barbell'
+                      : archetype === 'CARDIO'
+                      ? 'walk'
+                      : archetype === 'READING'
+                      ? 'book'
+                      : archetype === 'BREATHWORK'
+                      ? 'leaf'
+                      : archetype === 'HYDRATION'
+                      ? 'water'
+                      : archetype === 'SKILL'
+                      ? 'code-slash'
+                      : 'timer-outline'
+                  }
+                  size={12}
+                  color={habitColor}
+                />
+                <Text style={[styles.typeBadgeText, { color: habitColor }]}>
+                  {archetype === 'WORKOUT'
+                    ? 'GYM / STRENGTH'
+                    : archetype === 'CARDIO'
+                    ? 'CARDIO / RUN'
+                    : archetype === 'READING'
+                    ? 'READING'
+                    : archetype === 'BREATHWORK'
+                    ? 'BREATHWORK'
+                    : archetype === 'HYDRATION'
+                    ? 'HYDRATION'
+                    : archetype === 'SKILL'
+                    ? 'SKILL PRACTICE'
+                    : 'STANDARD TIMER'}
                 </Text>
               </View>
             </View>
 
-            <Pressable style={styles.closeButton} onPress={onClose}>
-              <Ionicons name="close" size={24} color={colors.textSecondary} />
-            </Pressable>
+            <View style={styles.headerRightActions}>
+              <Pressable
+                style={styles.cancelHeaderBtn}
+                onPress={handleConfirmCancel}
+                hitSlop={8}
+              >
+                <Text style={styles.cancelHeaderText}>Discard</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.minimizeBtn, { backgroundColor: isDark ? '#374151' : '#F3F4F6' }]}
+                onPress={onClose}
+                hitSlop={8}
+              >
+                <Ionicons name="chevron-down" size={20} color={colors.textSecondary} />
+              </Pressable>
+            </View>
           </View>
 
           <ScrollView
@@ -291,11 +503,22 @@ export function HabitSessionModal({ visible, habit, onClose }: HabitSessionModal
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.scrollContent}
           >
-            {/* ── Timer Display (Except purely count-based like water) ── */}
-            {type !== 'WATER' && (
-              <Animated.View entering={FadeInDown.duration(400)} style={[styles.timerCard, { backgroundColor: isDark ? colors.background : '#F8F6FF', borderColor: colors.border }]}>
-                <Text style={[styles.timerLabel, { color: colors.textSecondary }]}>SESSION TIMER</Text>
-                <Text style={[styles.timerValue, { color: colors.primary }]}>
+            {/* ── TIMER CARD (Universal for timed activities) ── */}
+            {archetype !== 'HYDRATION' && archetype !== 'CHECKLIST' && (
+              <Animated.View
+                entering={FadeInDown.duration(400)}
+                style={[
+                  styles.timerCard,
+                  {
+                    backgroundColor: isDark ? colors.background : '#F8F6FF',
+                    borderColor: colors.border,
+                  },
+                ]}
+              >
+                <Text style={[styles.timerLabel, { color: colors.textSecondary }]}>
+                  {session?.isRunning ? 'ACTIVE SESSION' : 'STOPWATCH'}
+                </Text>
+                <Text style={[styles.timerValue, { color: habitColor }]}>
                   {formatTimer(secondsElapsed)}
                 </Text>
 
@@ -303,103 +526,390 @@ export function HabitSessionModal({ visible, habit, onClose }: HabitSessionModal
                   <Pressable
                     style={[
                       styles.timerButton,
-                      session?.isRunning ? styles.timerButtonPause : styles.timerButtonPlay,
+                      session?.isRunning
+                        ? styles.timerButtonPause
+                        : [styles.timerButtonPlay, { backgroundColor: habitColor }],
                     ]}
                     onPress={toggleTimer}
                   >
                     <Ionicons
                       name={session?.isRunning ? 'pause' : 'play'}
-                      size={20}
+                      size={18}
                       color="#FFFFFF"
                     />
                     <Text style={styles.timerButtonText}>
                       {session?.isRunning ? 'Pause' : secondsElapsed > 0 ? 'Resume' : 'Start'}
                     </Text>
                   </Pressable>
-
-                  {secondsElapsed > 0 && !session?.isRunning ? (
-                    <Pressable style={[styles.resetButton, { borderColor: colors.border }]} onPress={resetTimer}>
-                      <Ionicons name="refresh" size={18} color={colors.textSecondary} />
-                    </Pressable>
-                  ) : null}
                 </View>
               </Animated.View>
             )}
 
-            {/* ── WORKOUT FORM ────────────────────────────── */}
-            {type === 'WORKOUT' && (
-              <Animated.View entering={FadeIn.duration(400)} style={styles.section}>
+            {/* ══════════════════════════════════════════════════════════
+                1. WORKOUT ENGINE: Splits, Muscles, Sets & Rest Timer
+               ══════════════════════════════════════════════════════════ */}
+            {archetype === 'WORKOUT' && (
+              <Animated.View entering={FadeInDown.duration(450)} style={styles.engineBlock}>
                 {/* 1-Tap Split Presets */}
-                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>QUICK SPLITS</Text>
-                <View style={styles.presetsRow}>
-                  {SPLIT_PRESETS.map((p) => (
+                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
+                  1-TAP SPLIT PRESETS
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.splitRow}>
+                  {SPLIT_PRESETS.map((preset) => (
                     <Pressable
-                      key={p.label}
+                      key={preset.label}
                       style={[
-                        styles.presetPill,
-                        { backgroundColor: isDark ? colors.background : '#F8F8FE', borderColor: colors.border },
+                        styles.splitChip,
+                        {
+                          backgroundColor: isDark ? colors.background : '#F3F4F6',
+                          borderColor: colors.border,
+                        },
                       ]}
-                      onPress={() => applySplitPreset(p.parts)}
+                      onPress={() => setSelectedBodyParts(preset.parts)}
                     >
-                      <Text style={styles.presetIcon}>{p.icon}</Text>
-                      <Text style={[styles.presetLabel, { color: colors.text }]}>{p.label}</Text>
+                      <Text style={styles.splitIcon}>{preset.icon}</Text>
+                      <Text style={[styles.splitLabel, { color: colors.text }]}>{preset.label}</Text>
                     </Pressable>
                   ))}
-                </View>
+                </ScrollView>
 
-                {/* Muscle Group Pills */}
+                {/* Muscle Activation Matrix */}
                 <Text style={[styles.sectionTitle, { color: colors.textSecondary, marginTop: 14 }]}>
-                  TARGET BODY PARTS
+                  TARGET MUSCLE GROUPS
                 </Text>
-                <View style={styles.chipsGrid}>
-                  {MUSCLE_GROUPS.map((group) => {
-                    const isSelected = selectedBodyParts.includes(group.id);
+                <View style={styles.muscleGrid}>
+                  {MUSCLE_GROUPS.map((mg) => {
+                    const isSelected = selectedBodyParts.includes(mg.id);
                     return (
                       <Pressable
-                        key={group.id}
+                        key={mg.id}
                         style={[
-                          styles.chip,
-                          { backgroundColor: isDark ? colors.background : '#F8F8FE', borderColor: colors.border },
-                          isSelected && styles.chipActive,
+                          styles.muscleChip,
+                          isSelected
+                            ? [styles.muscleChipActive, { backgroundColor: habitColor }]
+                            : {
+                                backgroundColor: isDark ? colors.background : '#F9FAFB',
+                                borderColor: colors.border,
+                              },
                         ]}
-                        onPress={() => toggleBodyPart(group.id)}
+                        onPress={() => {
+                          setSelectedBodyParts((prev) =>
+                            prev.includes(mg.id) ? prev.filter((p) => p !== mg.id) : [...prev, mg.id]
+                          );
+                        }}
                       >
                         <Ionicons
-                          name={group.icon as any}
-                          size={16}
+                          name={mg.icon as IoniconsName}
+                          size={14}
                           color={isSelected ? '#FFFFFF' : colors.textSecondary}
                         />
-                        <Text style={[styles.chipText, { color: colors.text }, isSelected && styles.chipTextActive]}>
-                          {group.label}
+                        <Text
+                          style={[
+                            styles.muscleLabel,
+                            { color: isSelected ? '#FFFFFF' : colors.text },
+                          ]}
+                        >
+                          {mg.label}
                         </Text>
                       </Pressable>
                     );
                   })}
                 </View>
 
-                {/* Intensity selector */}
-                <Text style={[styles.sectionTitle, { color: colors.textSecondary, marginTop: 14 }]}>
-                  INTENSITY
-                </Text>
-                <View style={styles.intensityRow}>
-                  {(['LOW', 'MODERATE', 'HIGH'] as const).map((level) => (
+                {/* Interactive Set Logger & Rest Timer */}
+                <View style={[styles.workoutSetCard, { backgroundColor: isDark ? colors.background : '#F9FAFB', borderColor: colors.border }]}>
+                  <View style={styles.workoutSetHeader}>
+                    <View>
+                      <Text style={[styles.workoutSetTitle, { color: colors.text }]}>Sets Completed</Text>
+                      <Text style={[styles.workoutSetCount, { color: habitColor }]}>{setsCount} Sets</Text>
+                    </View>
+
                     <Pressable
-                      key={level}
+                      style={[styles.addSetBtn, { backgroundColor: habitColor }]}
+                      onPress={() => setSetsCount((c) => c + 1)}
+                    >
+                      <Ionicons name="add" size={18} color="#FFFFFF" />
+                      <Text style={styles.addSetBtnText}>+ Set</Text>
+                    </Pressable>
+                  </View>
+
+                  {/* Rest Timer Toggle */}
+                  <Text style={[styles.restTimerTitle, { color: colors.textSecondary }]}>REST INTERVAL TIMER</Text>
+                  <View style={styles.restTimerRow}>
+                    {[30, 60, 90, 120].map((sec) => (
+                      <Pressable
+                        key={sec}
+                        style={[
+                          styles.restTimerChip,
+                          restSecondsRemaining === sec
+                            ? [styles.restTimerChipActive, { backgroundColor: habitColor }]
+                            : { borderColor: colors.border },
+                        ]}
+                        onPress={() => startRestTimer(sec)}
+                      >
+                        <Text style={[styles.restTimerChipText, { color: restSecondsRemaining === sec ? '#FFF' : colors.text }]}>
+                          {sec}s
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+
+                  {restSecondsRemaining !== null && (
+                    <View style={styles.restCountdownBanner}>
+                      <Ionicons name="timer-outline" size={18} color="#FF7675" />
+                      <Text style={styles.restCountdownText}>
+                        Resting: {restSecondsRemaining}s remaining
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </Animated.View>
+            )}
+
+            {/* ══════════════════════════════════════════════════════════
+                2. CARDIO ENGINE: Pace, Distance, Terrain & Effort
+               ══════════════════════════════════════════════════════════ */}
+            {archetype === 'CARDIO' && (
+              <Animated.View entering={FadeInDown.duration(450)} style={styles.engineBlock}>
+                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>DISTANCE (KM)</Text>
+                <View style={styles.distancePresetsRow}>
+                  {['1', '3', '5', '10'].map((km) => (
+                    <Pressable
+                      key={km}
                       style={[
-                        styles.intensityPill,
-                        { backgroundColor: isDark ? colors.background : '#F8F8FE', borderColor: colors.border },
-                        workoutIntensity === level && styles.intensityPillActive,
+                        styles.distChip,
+                        distanceKm === km
+                          ? [styles.distChipActive, { backgroundColor: habitColor }]
+                          : { borderColor: colors.border, backgroundColor: isDark ? colors.background : '#F3F4F6' },
                       ]}
-                      onPress={() => setWorkoutIntensity(level)}
+                      onPress={() => setDistanceKm(km)}
+                    >
+                      <Text style={[styles.distChipText, { color: distanceKm === km ? '#FFF' : colors.text }]}>
+                        {km} km
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                <TextInput
+                  style={[
+                    styles.customInput,
+                    {
+                      backgroundColor: isDark ? colors.background : '#F9FAFB',
+                      borderColor: colors.border,
+                      color: colors.text,
+                    },
+                  ]}
+                  keyboardType="decimal-pad"
+                  placeholder="Or enter custom distance (e.g. 4.2)"
+                  placeholderTextColor={colors.textSecondary}
+                  value={distanceKm}
+                  onChangeText={setDistanceKm}
+                />
+
+                {calculatePace() && (
+                  <View style={[styles.metricHighlight, { backgroundColor: habitColor + '18' }]}>
+                    <Ionicons name="speedometer-outline" size={20} color={habitColor} />
+                    <Text style={[styles.metricHighlightText, { color: habitColor }]}>
+                      Calculated Pace: {calculatePace()}
+                    </Text>
+                  </View>
+                )}
+
+                <Text style={[styles.sectionTitle, { color: colors.textSecondary, marginTop: 14 }]}>SURFACE / TERRAIN</Text>
+                <View style={styles.surfaceRow}>
+                  {RUNNING_SURFACES.map((surf) => {
+                    const isSurfActive = runningSurface === surf.id;
+                    return (
+                      <Pressable
+                        key={surf.id}
+                        style={[
+                          styles.surfaceChip,
+                          isSurfActive
+                            ? [styles.surfaceChipActive, { backgroundColor: habitColor }]
+                            : { borderColor: colors.border, backgroundColor: isDark ? colors.background : '#F9FAFB' },
+                        ]}
+                        onPress={() => setRunningSurface(surf.id)}
+                      >
+                        <Ionicons
+                          name={surf.icon as IoniconsName}
+                          size={15}
+                          color={isSurfActive ? '#FFFFFF' : colors.textSecondary}
+                        />
+                        <Text style={[styles.surfaceChipText, { color: isSurfActive ? '#FFFFFF' : colors.text }]}>
+                          {surf.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </Animated.View>
+            )}
+
+            {/* ══════════════════════════════════════════════════════════
+                3. READING ENGINE: Pages Delta, Book & Insight Capture
+               ══════════════════════════════════════════════════════════ */}
+            {archetype === 'READING' && (
+              <Animated.View entering={FadeInDown.duration(450)} style={styles.engineBlock}>
+                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>BOOK TITLE</Text>
+                <TextInput
+                  style={[
+                    styles.customInput,
+                    {
+                      backgroundColor: isDark ? colors.background : '#F9FAFB',
+                      borderColor: colors.border,
+                      color: colors.text,
+                    },
+                  ]}
+                  placeholder="e.g. Atomic Habits, Meditations..."
+                  placeholderTextColor={colors.textSecondary}
+                  value={bookTitle}
+                  onChangeText={setBookTitle}
+                />
+
+                <Text style={[styles.sectionTitle, { color: colors.textSecondary, marginTop: 14 }]}>PAGE TRACKER</Text>
+                <View style={styles.readingPagesRow}>
+                  <View style={styles.readingPageCol}>
+                    <Text style={[styles.pageInputLabel, { color: colors.textSecondary }]}>Start Page</Text>
+                    <TextInput
+                      style={[
+                        styles.pageInput,
+                        {
+                          backgroundColor: isDark ? colors.background : '#F9FAFB',
+                          borderColor: colors.border,
+                          color: colors.text,
+                        },
+                      ]}
+                      keyboardType="numeric"
+                      value={startPage}
+                      onChangeText={setStartPage}
+                    />
+                  </View>
+
+                  <View style={styles.readingPageArrow}>
+                    <Ionicons name="arrow-forward" size={20} color={colors.textSecondary} />
+                  </View>
+
+                  <View style={styles.readingPageCol}>
+                    <Text style={[styles.pageInputLabel, { color: colors.textSecondary }]}>End Page</Text>
+                    <TextInput
+                      style={[
+                        styles.pageInput,
+                        {
+                          backgroundColor: isDark ? colors.background : '#F9FAFB',
+                          borderColor: colors.border,
+                          color: colors.text,
+                        },
+                      ]}
+                      keyboardType="numeric"
+                      value={endPage}
+                      onChangeText={setEndPage}
+                    />
+                  </View>
+                </View>
+
+                {pagesReadDelta > 0 && (
+                  <View style={[styles.metricHighlight, { backgroundColor: '#FDCB6E22' }]}>
+                    <Ionicons name="book-outline" size={20} color="#D48806" />
+                    <Text style={[styles.metricHighlightText, { color: '#D48806' }]}>
+                      Progress: +{pagesReadDelta} pages read!
+                    </Text>
+                  </View>
+                )}
+
+                <Text style={[styles.sectionTitle, { color: colors.textSecondary, marginTop: 14 }]}>
+                  FAVORITE QUOTE / KEY INSIGHT
+                </Text>
+                <TextInput
+                  style={[
+                    styles.customInputMulti,
+                    {
+                      backgroundColor: isDark ? colors.background : '#F9FAFB',
+                      borderColor: colors.border,
+                      color: colors.text,
+                    },
+                  ]}
+                  placeholder="Record an inspiring thought or mental model..."
+                  placeholderTextColor={colors.textSecondary}
+                  value={memorableQuote}
+                  onChangeText={setMemorableQuote}
+                  multiline
+                />
+              </Animated.View>
+            )}
+
+
+
+            {/* ══════════════════════════════════════════════════════════
+                5. BREATHWORK ENGINE: Guided Pulsating Orb & Pacing
+               ══════════════════════════════════════════════════════════ */}
+            {archetype === 'BREATHWORK' && (
+              <Animated.View entering={FadeInDown.duration(450)} style={styles.engineBlock}>
+                <View style={styles.breathModeRow}>
+                  {BREATHWORK_MODES.map((mode) => (
+                    <Pressable
+                      key={mode.id}
+                      style={[
+                        styles.breathModeChip,
+                        breathworkMode === mode.id
+                          ? [styles.breathModeChipActive, { backgroundColor: habitColor }]
+                          : { borderColor: colors.border, backgroundColor: isDark ? colors.background : '#F3F4F6' },
+                      ]}
+                      onPress={() => setBreathworkMode(mode.id as any)}
                     >
                       <Text
                         style={[
-                          styles.intensityText,
-                          { color: colors.textSecondary },
-                          workoutIntensity === level && styles.intensityTextActive,
+                          styles.breathModeText,
+                          { color: breathworkMode === mode.id ? '#FFF' : colors.text },
                         ]}
                       >
-                        {level}
+                        {mode.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                {/* Animated Breathing Orb */}
+                <View style={styles.orbContainer}>
+                  <Animated.View
+                    style={[
+                      styles.breathingOrb,
+                      { backgroundColor: habitColor + '2E', borderColor: habitColor },
+                      animatedOrbStyle,
+                    ]}
+                  >
+                    <Text style={[styles.breathPhaseText, { color: habitColor }]}>
+                      {session?.isRunning ? breathPhase : 'Ready'}
+                    </Text>
+                  </Animated.View>
+                </View>
+
+                <Text style={[styles.sectionTitle, { color: colors.textSecondary, marginTop: 14 }]}>
+                  POST-SESSION MOOD
+                </Text>
+                <View style={styles.moodRow}>
+                  {[
+                    { id: 'CALM', label: 'Calm 😌' },
+                    { id: 'FOCUSED', label: 'Focused 🎯' },
+                    { id: 'ENERGIZED', label: 'Energized ⚡' },
+                  ].map((m) => (
+                    <Pressable
+                      key={m.id}
+                      style={[
+                        styles.moodChip,
+                        postMood === m.id
+                          ? [styles.moodChipActive, { backgroundColor: habitColor }]
+                          : { borderColor: colors.border, backgroundColor: isDark ? colors.background : '#F3F4F6' },
+                      ]}
+                      onPress={() => setPostMood(m.id as any)}
+                    >
+                      <Text
+                        style={[
+                          styles.moodChipText,
+                          { color: postMood === m.id ? '#FFF' : colors.text },
+                        ]}
+                      >
+                        {m.label}
                       </Text>
                     </Pressable>
                   ))}
@@ -407,202 +917,147 @@ export function HabitSessionModal({ visible, habit, onClose }: HabitSessionModal
               </Animated.View>
             )}
 
-            {/* ── RUNNING FORM ────────────────────────────── */}
-            {type === 'RUNNING' && (
-              <Animated.View entering={FadeIn.duration(400)} style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>DISTANCE (KM)</Text>
-                <View style={[styles.inputBox, { backgroundColor: isDark ? colors.background : '#F8F8FE', borderColor: colors.border }]}>
-                  <Ionicons name="navigate-outline" size={20} color={colors.primary} />
-                  <TextInput
-                    style={[styles.input, { color: colors.text }]}
-                    placeholder="e.g. 5.2"
-                    placeholderTextColor={colors.textSecondary}
-                    value={distanceKm}
-                    onChangeText={setDistanceKm}
-                    keyboardType="numeric"
-                  />
-                  <Text style={[styles.inputUnit, { color: colors.textSecondary }]}>km</Text>
-                </View>
+            {/* ══════════════════════════════════════════════════════════
+                6. HYDRATION ENGINE: 1-Tap Rapid Logger & Cylinder
+               ══════════════════════════════════════════════════════════ */}
+            {archetype === 'HYDRATION' && (
+              <Animated.View entering={FadeInDown.duration(450)} style={styles.engineBlock}>
+                <View
+                  style={[
+                    styles.hydrationCylinderCard,
+                    { backgroundColor: isDark ? colors.background : '#EFF6FF', borderColor: colors.border },
+                  ]}
+                >
+                  <Ionicons name="water" size={32} color="#0984E3" />
+                  <Text style={[styles.hydrationTotal, { color: '#0984E3' }]}>
+                    {consumedMl} ml
+                  </Text>
+                  <Text style={[styles.hydrationTarget, { color: colors.textSecondary }]}>
+                    Target: {defaultTarget} ml ({Math.min(100, Math.round((consumedMl / defaultTarget) * 100))}%)
+                  </Text>
 
-                {calculatePace() && (
-                  <View style={[styles.paceBadge, { backgroundColor: '#DCFCE7' }]}>
-                    <Ionicons name="speedometer-outline" size={16} color="#16A34A" />
-                    <Text style={styles.paceText}>Calculated Pace: {calculatePace()}</Text>
-                  </View>
-                )}
-              </Animated.View>
-            )}
-
-            {/* ── READING FORM ────────────────────────────── */}
-            {type === 'READING' && (
-              <Animated.View entering={FadeIn.duration(400)} style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>BOOK TITLE</Text>
-                <View style={[styles.inputBox, { backgroundColor: isDark ? colors.background : '#F8F8FE', borderColor: colors.border }]}>
-                  <Ionicons name="book-outline" size={20} color={colors.primary} />
-                  <TextInput
-                    style={[styles.input, { color: colors.text }]}
-                    placeholder="Book name..."
-                    placeholderTextColor={colors.textSecondary}
-                    value={bookTitle}
-                    onChangeText={setBookTitle}
-                  />
-                </View>
-
-                <View style={styles.pagesRow}>
-                  <View style={styles.pageInputWrap}>
-                    <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>STARTED AT</Text>
-                    <View style={[styles.inputBox, { backgroundColor: isDark ? colors.background : '#F8F8FE', borderColor: colors.border }]}>
-                      <TextInput
-                        style={[styles.input, { color: colors.text }]}
-                        value={startPage}
-                        onChangeText={setStartPage}
-                        keyboardType="numeric"
-                      />
-                    </View>
-                  </View>
-
-                  <Ionicons name="arrow-forward" size={20} color={colors.textSecondary} style={{ marginTop: 24 }} />
-
-                  <View style={styles.pageInputWrap}>
-                    <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>ENDED AT</Text>
-                    <View style={[styles.inputBox, { backgroundColor: isDark ? colors.background : '#F8F8FE', borderColor: colors.border }]}>
-                      <TextInput
-                        style={[styles.input, { color: colors.text }]}
-                        value={endPage}
-                        onChangeText={setEndPage}
-                        keyboardType="numeric"
-                      />
-                    </View>
-                  </View>
-                </View>
-
-                {pagesReadDelta > 0 && (
-                  <View style={[styles.paceBadge, { backgroundColor: '#FEF3C7' }]}>
-                    <Ionicons name="checkmark-circle" size={16} color="#D97706" />
-                    <Text style={[styles.paceText, { color: '#B45309' }]}>
-                      +{pagesReadDelta} pages read in this session!
-                    </Text>
-                  </View>
-                )}
-              </Animated.View>
-            )}
-
-            {/* ── MEDITATION FORM ─────────────────────────── */}
-            {type === 'MEDITATION' && (
-              <Animated.View entering={FadeIn.duration(400)} style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>TARGET TIME</Text>
-                <View style={styles.presetsRow}>
-                  {MEDITATION_PRESETS.map((m) => (
-                    <Pressable
-                      key={m}
+                  <View style={styles.hydrationProgressTrack}>
+                    <View
                       style={[
-                        styles.presetPill,
-                        { backgroundColor: isDark ? colors.background : '#F8F8FE', borderColor: colors.border },
-                        secondsElapsed === m * 60 && styles.presetPillActive,
+                        styles.hydrationProgressBar,
+                        {
+                          width: `${Math.min(100, (consumedMl / defaultTarget) * 100)}%`,
+                          backgroundColor: '#0984E3',
+                        },
                       ]}
-                      onPress={() => {
-                        if (habit) {
-                          store.pauseSession(habit.id);
-                          store.updateSessionData(habit.id, { accumulatedTime: m * 60 });
-                          setSecondsElapsed(m * 60);
-                        }
-                      }}
-                    >
-                      <Text style={[styles.presetLabel, { color: colors.text }]}>{m} min</Text>
-                    </Pressable>
-                  ))}
+                    />
+                  </View>
                 </View>
 
                 <Text style={[styles.sectionTitle, { color: colors.textSecondary, marginTop: 14 }]}>
-                  POST-MEDITATION MOOD
+                  TAP TO ADD WATER
                 </Text>
-                <View style={styles.presetsRow}>
-                  {(['CALM', 'FOCUSED', 'ENERGIZED'] as const).map((m) => (
+                <View style={styles.waterTapRow}>
+                  {[
+                    { label: '+250 ml', icon: 'wine-outline', ml: 250 },
+                    { label: '+500 ml', icon: 'water-outline', ml: 500 },
+                    { label: '+750 ml', icon: 'flask-outline', ml: 750 },
+                  ].map((btn) => (
                     <Pressable
-                      key={m}
-                      style={[
-                        styles.presetPill,
-                        { backgroundColor: isDark ? colors.background : '#F8F8FE', borderColor: colors.border },
-                        meditationMood === m && styles.presetPillActive,
-                      ]}
-                      onPress={() => setMeditationMood(m)}
+                      key={btn.label}
+                      style={[styles.waterTapBtn, { borderColor: colors.border }]}
+                      onPress={() => setConsumedMl((prev) => prev + btn.ml)}
                     >
-                      <Text style={[styles.presetLabel, { color: colors.text }]}>{m}</Text>
+                      <Ionicons name={btn.icon as IoniconsName} size={20} color="#0984E3" />
+                      <Text style={[styles.waterTapBtnText, { color: colors.text }]}>{btn.label}</Text>
                     </Pressable>
                   ))}
                 </View>
               </Animated.View>
             )}
 
-            {/* ── WATER FORM ──────────────────────────────── */}
-            {type === 'WATER' && (
-              <Animated.View entering={FadeIn.duration(400)} style={styles.section}>
-                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>GLASSES LOGGED</Text>
-                <View style={styles.waterCounterRow}>
-                  <Pressable
-                    style={[styles.waterStepBtn, { backgroundColor: isDark ? colors.background : '#F0EDFF' }]}
-                    onPress={() => setWaterGlasses((g: number) => Math.max(1, g - 1))}
-                  >
-                    <Ionicons name="remove" size={24} color={colors.primary} />
-                  </Pressable>
+            {/* ══════════════════════════════════════════════════════════
+                7. SKILL ENGINE: Topic & Reps Counter
+               ══════════════════════════════════════════════════════════ */}
+            {archetype === 'SKILL' && (
+              <Animated.View entering={FadeInDown.duration(450)} style={styles.engineBlock}>
+                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>SKILL TOPIC</Text>
+                <TextInput
+                  style={[
+                    styles.customInput,
+                    {
+                      backgroundColor: isDark ? colors.background : '#F9FAFB',
+                      borderColor: colors.border,
+                      color: colors.text,
+                    },
+                  ]}
+                  placeholder="e.g. LeetCode Trees, Spanish Vocab, Blues Solo..."
+                  placeholderTextColor={colors.textSecondary}
+                  value={skillTask}
+                  onChangeText={setSkillTask}
+                />
 
-                  <View style={styles.waterDisplay}>
-                    <Ionicons name="water" size={32} color="#00B894" />
-                    <Text style={[styles.waterValue, { color: colors.text }]}>{waterGlasses}</Text>
-                    <Text style={[styles.waterUnit, { color: colors.textSecondary }]}>
-                      {waterGlasses * 250} ml
-                    </Text>
+                <View style={[styles.repCounterCard, { backgroundColor: isDark ? colors.background : '#F9FAFB', borderColor: colors.border }]}>
+                  <Text style={[styles.repCounterTitle, { color: colors.text }]}>Problems / Reps Solved</Text>
+                  <Text style={[styles.repCounterValue, { color: habitColor }]}>{repsCount}</Text>
+                  <View style={styles.repButtonsRow}>
+                    <Pressable style={[styles.repBtn, { borderColor: colors.border }]} onPress={() => setRepsCount((c) => Math.max(0, c - 1))}>
+                      <Text style={[styles.repBtnText, { color: colors.text }]}>-1</Text>
+                    </Pressable>
+                    <Pressable style={[styles.repBtn, { backgroundColor: habitColor }]} onPress={() => setRepsCount((c) => c + 1)}>
+                      <Text style={[styles.repBtnText, { color: '#FFF' }]}>+1</Text>
+                    </Pressable>
+                    <Pressable style={[styles.repBtn, { backgroundColor: habitColor }]} onPress={() => setRepsCount((c) => c + 5)}>
+                      <Text style={[styles.repBtnText, { color: '#FFF' }]}>+5</Text>
+                    </Pressable>
                   </View>
-
-                  <Pressable
-                    style={[styles.waterStepBtn, { backgroundColor: isDark ? colors.background : '#F0EDFF' }]}
-                    onPress={() => setWaterGlasses((g: number) => g + 1)}
-                  >
-                    <Ionicons name="add" size={24} color={colors.primary} />
-                  </Pressable>
                 </View>
               </Animated.View>
             )}
 
-            {/* ── SESSION NOTES (ALL HABITS) ───────────────── */}
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
-                SESSION NOTES (OPTIONAL)
-              </Text>
-              <TextInput
-                style={[
-                  styles.notesInput,
-                  { backgroundColor: isDark ? colors.background : '#F8F8FE', borderColor: colors.border, color: colors.text },
-                ]}
-                placeholder="How did it feel? Any highlights or PRs?"
-                placeholderTextColor={colors.textSecondary}
-                value={notes}
-                onChangeText={setNotes}
-                multiline
-                numberOfLines={3}
-              />
-            </View>
+
+
+            {/* ── Universal Notes Section ── */}
+            <Text style={[styles.sectionTitle, { color: colors.textSecondary, marginTop: 16 }]}>
+              SESSION NOTES (OPTIONAL)
+            </Text>
+            <TextInput
+              style={[
+                styles.notesInput,
+                {
+                  backgroundColor: isDark ? colors.background : '#F9FAFB',
+                  borderColor: colors.border,
+                  color: colors.text,
+                },
+              ]}
+              placeholder="How did this session feel? What did you accomplish?"
+              placeholderTextColor={colors.textSecondary}
+              value={notes}
+              onChangeText={setNotes}
+              multiline
+            />
 
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-            {/* ── FINISH BUTTON ────────────────────────────── */}
+            {/* ── Complete Session Action Button ── */}
             <Pressable
               style={({ pressed }) => [
                 styles.finishButton,
-                pressed && styles.finishButtonPressed,
-                createSession.isPending && styles.finishButtonDisabled,
+                { backgroundColor: habitColor },
+                pressed ? styles.finishButtonPressed : undefined,
               ]}
               onPress={handleFinish}
               disabled={createSession.isPending}
             >
               {createSession.isPending ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
+                <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <>
+                <View style={styles.finishButtonContent}>
                   <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
-                  <Text style={styles.finishButtonText}>Finish & Save Session 🎉</Text>
-                </>
+                  <Text style={styles.finishButtonText}>Complete Session 🎯</Text>
+                </View>
               )}
+            </Pressable>
+
+            {/* ── Cancel & Discard Option ── */}
+            <Pressable style={styles.discardFooterBtn} onPress={handleConfirmCancel}>
+              <Ionicons name="trash-outline" size={15} color="#FF7675" />
+              <Text style={styles.discardFooterText}>Cancel & Discard Session</Text>
             </Pressable>
           </ScrollView>
         </View>
@@ -614,45 +1069,42 @@ export function HabitSessionModal({ visible, habit, onClose }: HabitSessionModal
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
     justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
   },
   sheet: {
-    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    maxHeight: '90%',
-    paddingTop: 20,
-    paddingHorizontal: 20,
-    paddingBottom: 36,
-    borderTopWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    elevation: 10,
+    borderWidth: 1,
+    maxHeight: '92%',
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
-    paddingHorizontal: 4,
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(150, 150, 150, 0.15)',
   },
   headerInfo: {
     flex: 1,
-    marginRight: 12,
   },
   habitTitle: {
-    fontSize: 22,
-    fontWeight: '900',
+    fontSize: 18,
+    fontWeight: '800',
     letterSpacing: -0.3,
   },
   typeBadge: {
-    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
+    paddingVertical: 3,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    gap: 4,
     marginTop: 4,
   },
   typeBadgeText: {
@@ -660,281 +1112,532 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.5,
   },
-  closeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  headerRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  cancelHeaderBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  cancelHeaderText: {
+    color: '#FF7675',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  minimizeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
   scrollContent: {
-    paddingBottom: 20,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 30,
   },
-
-  // Timer
   timerCard: {
     borderRadius: 20,
-    padding: 18,
+    padding: 16,
     alignItems: 'center',
-    marginBottom: 16,
     borderWidth: 1,
+    marginBottom: 16,
   },
   timerLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '800',
-    letterSpacing: 1,
-    marginBottom: 4,
+    letterSpacing: 0.8,
   },
   timerValue: {
-    fontSize: 44,
-    fontWeight: '900',
+    fontSize: 40,
+    fontWeight: '800',
     fontVariant: ['tabular-nums'],
-    letterSpacing: 1,
-    marginBottom: 12,
+    marginVertical: 6,
   },
   timerControls: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    gap: 10,
   },
   timerButton: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 10,
-    borderRadius: 16,
+    borderRadius: 14,
     gap: 6,
-    shadowColor: '#6C5CE7',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 3,
   },
-  timerButtonPlay: {
-    backgroundColor: '#6C5CE7',
-  },
+  timerButtonPlay: {},
   timerButtonPause: {
-    backgroundColor: '#E17055',
+    backgroundColor: '#FF7675',
   },
   timerButtonText: {
     color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  resetButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  // Section
-  section: {
-    marginBottom: 16,
+    fontSize: 14,
+    fontWeight: '700',
   },
   sectionTitle: {
     fontSize: 11,
     fontWeight: '800',
-    letterSpacing: 0.8,
+    letterSpacing: 0.6,
     marginBottom: 8,
-    marginLeft: 2,
   },
-
-  // Workout presets & chips
-  presetsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  engineBlock: {
+    marginBottom: 14,
+  },
+  splitRow: {
     gap: 8,
+    paddingBottom: 4,
   },
-  presetPill: {
+  splitChip: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
-    gap: 5,
+    gap: 6,
   },
-  presetPillActive: {
-    backgroundColor: '#6C5CE7',
-    borderColor: '#6C5CE7',
-  },
-  presetIcon: {
+  splitIcon: {
     fontSize: 14,
   },
-  presetLabel: {
-    fontSize: 13,
+  splitLabel: {
+    fontSize: 12,
     fontWeight: '700',
   },
-  chipsGrid: {
+  muscleGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
   },
-  chip: {
+  muscleChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
     borderRadius: 12,
     borderWidth: 1,
     gap: 6,
   },
-  chipActive: {
-    backgroundColor: '#6C5CE7',
-    borderColor: '#6C5CE7',
+  muscleChipActive: {
+    borderColor: 'transparent',
   },
-  chipText: {
+  muscleLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  workoutSetCard: {
+    marginTop: 14,
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  workoutSetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  workoutSetTitle: {
     fontSize: 13,
     fontWeight: '700',
   },
-  chipTextActive: {
-    color: '#FFFFFF',
+  workoutSetCount: {
+    fontSize: 18,
+    fontWeight: '800',
   },
-  intensityRow: {
+  addSetBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 12,
+    gap: 4,
+  },
+  addSetBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  restTimerTitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  restTimerRow: {
     flexDirection: 'row',
     gap: 8,
   },
-  intensityPill: {
+  restTimerChip: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  restTimerChipActive: {
+    borderColor: 'transparent',
+  },
+  restTimerChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  restCountdownBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFE3E3',
+    padding: 8,
+    borderRadius: 10,
+    marginTop: 10,
+    gap: 6,
+  },
+  restCountdownText: {
+    color: '#D63031',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  distancePresetsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8,
+  },
+  distChip: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 9,
     borderRadius: 12,
     borderWidth: 1,
   },
-  intensityPillActive: {
-    backgroundColor: '#6C5CE7',
-    borderColor: '#6C5CE7',
+  distChipActive: {
+    borderColor: 'transparent',
   },
-  intensityText: {
+  distChipText: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '700',
   },
-  intensityTextActive: {
-    color: '#FFFFFF',
-  },
-
-  // Inputs
-  inputBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  customInput: {
+    height: 46,
     borderRadius: 14,
     borderWidth: 1,
     paddingHorizontal: 14,
-    height: 48,
-    gap: 10,
-  },
-  input: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  inputUnit: {
     fontSize: 14,
-    fontWeight: '700',
-  },
-  paceBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-    marginTop: 8,
-    gap: 6,
-  },
-  paceText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#15803D',
-  },
-
-  // Reading
-  pagesRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 10,
-  },
-  pageInputWrap: {
-    flex: 1,
-  },
-
-  // Water
-  waterCounterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingVertical: 10,
-  },
-  waterStepBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  waterDisplay: {
-    alignItems: 'center',
-    gap: 4,
-  },
-  waterValue: {
-    fontSize: 32,
-    fontWeight: '900',
-  },
-  waterUnit: {
-    fontSize: 13,
     fontWeight: '600',
   },
-
-  // Notes
-  notesInput: {
+  customInputMulti: {
+    minHeight: 60,
     borderRadius: 14,
     borderWidth: 1,
-    padding: 12,
-    fontSize: 14,
-    fontWeight: '500',
-    minHeight: 70,
-    textAlignVertical: 'top',
-  },
-
-  errorText: {
-    color: '#FF6B6B',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     fontSize: 13,
-    fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 10,
+    fontWeight: '500',
   },
-
-  // Finish
-  finishButton: {
+  metricHighlight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 14,
+    gap: 8,
+    marginTop: 10,
+  },
+  metricHighlightText: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  surfaceRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  surfaceChip: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 4,
+  },
+  surfaceChipActive: {
+    borderColor: 'transparent',
+  },
+  surfaceChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  readingPagesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  readingPageCol: {
+    flex: 1,
+  },
+  pageInputLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  pageInput: {
+    height: 46,
+    borderRadius: 14,
+    borderWidth: 1,
+    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  readingPageArrow: {
+    paddingTop: 16,
+  },
+  shieldCard: {
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  shieldHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  shieldIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  shieldTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  shieldDesc: {
+    fontSize: 11,
+    fontWeight: '400',
+    marginTop: 2,
+  },
+  shieldCount: {
+    fontSize: 22,
+    fontWeight: '800',
+    marginLeft: 8,
+  },
+  shieldTapBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#6C5CE7',
-    paddingVertical: 16,
-    borderRadius: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    marginTop: 12,
+    gap: 6,
+  },
+  shieldTapBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  breathModeRow: {
+    flexDirection: 'row',
     gap: 8,
-    marginTop: 6,
-    shadowColor: '#6C5CE7',
+    marginBottom: 16,
+  },
+  breathModeChip: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  breathModeChipActive: {
+    borderColor: 'transparent',
+  },
+  breathModeText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  orbContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 160,
+    marginVertical: 10,
+  },
+  breathingOrb: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  breathPhaseText: {
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  moodRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  moodChip: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  moodChipActive: {
+    borderColor: 'transparent',
+  },
+  moodChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  hydrationCylinderCard: {
+    alignItems: 'center',
+    padding: 18,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  hydrationTotal: {
+    fontSize: 32,
+    fontWeight: '800',
+    marginVertical: 4,
+  },
+  hydrationTarget: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  hydrationProgressTrack: {
+    width: '100%',
+    height: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.08)',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  hydrationProgressBar: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  waterTapRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  waterTapBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 6,
+  },
+  waterTapBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  repCounterCard: {
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginTop: 12,
+  },
+  repCounterTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  repCounterValue: {
+    fontSize: 36,
+    fontWeight: '800',
+    marginVertical: 6,
+  },
+  repButtonsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  repBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  repBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  triggerChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  triggerChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  triggerChipActive: {
+    borderColor: 'transparent',
+  },
+  triggerChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  notesInput: {
+    minHeight: 64,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 13,
+    fontWeight: '500',
+    marginBottom: 16,
+  },
+  errorText: {
+    color: '#FF7675',
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  finishButton: {
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 5,
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 3,
   },
   finishButtonPressed: {
-    transform: [{ scale: 0.98 }],
     opacity: 0.9,
+    transform: [{ scale: 0.98 }],
   },
-  finishButtonDisabled: {
-    opacity: 0.6,
+  finishButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   finishButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
-    letterSpacing: 0.2,
+  },
+  discardFooterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    gap: 6,
+    marginTop: 8,
+  },
+  discardFooterText: {
+    color: '#FF7675',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

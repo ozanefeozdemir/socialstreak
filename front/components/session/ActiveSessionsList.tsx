@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSessionStore } from '@/store/useSessionStore';
@@ -8,6 +8,7 @@ import type { HabitRespond } from '@/types';
 export function ActiveSessionsList({ onOpenSession }: { onOpenSession: (habit: HabitRespond) => void }) {
   const { colors, isDark } = useTheme();
   const sessionsMap = useSessionStore((state) => state.sessions);
+  const cancelSession = useSessionStore((state) => state.cancelSession);
   const activeSessions = Object.values(sessionsMap);
 
   const [ticker, setTicker] = useState(0);
@@ -21,6 +22,13 @@ export function ActiveSessionsList({ onOpenSession }: { onOpenSession: (habit: H
   }, [activeSessions.length]);
 
   if (activeSessions.length === 0) return null;
+
+  const handleQuickCancel = (habitId: string, habitName: string) => {
+    Alert.alert('Cancel Session?', `Discard the active session for "${habitName}"?`, [
+      { text: 'Keep Going', style: 'cancel' },
+      { text: 'Discard', style: 'destructive', onPress: () => cancelSession(habitId) },
+    ]);
+  };
 
   return (
     <View style={styles.container}>
@@ -47,6 +55,13 @@ export function ActiveSessionsList({ onOpenSession }: { onOpenSession: (habit: H
                 {session.habit.name}
               </Text>
               <Text style={[styles.timeText, { color: colors.primary }]}>{timeStr}</Text>
+              <Pressable
+                style={styles.pillCancelBtn}
+                onPress={() => handleQuickCancel(session.habit.id, session.habit.name)}
+                hitSlop={6}
+              >
+                <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
+              </Pressable>
             </Pressable>
           );
         })}
@@ -103,5 +118,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     fontVariant: ['tabular-nums'],
+    marginRight: 6,
+  },
+  pillCancelBtn: {
+    marginLeft: 2,
+    padding: 2,
   },
 });

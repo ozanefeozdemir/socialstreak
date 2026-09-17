@@ -73,10 +73,15 @@ export const HabitCard = memo(function HabitCard({
     onCheckIn(habit);
   };
 
-  const accentColor = FREQUENCY_COLORS[habit.frequencyType] ?? '#6C5CE7';
+  const accentColor = habit.config?.color || (FREQUENCY_COLORS[habit.frequencyType] ?? '#6C5CE7');
   const type = habit.habitType || 'GENERAL';
-  const actionIcon = checkedInToday ? 'checkmark' : (HABIT_TYPE_ICONS[type] || 'play');
+  const customIconName = habit.config?.icon as keyof typeof Ionicons.glyphMap | undefined;
+  const actionIcon = checkedInToday ? 'checkmark' : (customIconName || HABIT_TYPE_ICONS[type] || 'play');
   const readingPage = habit.config?.currentPage;
+  const targetValue = habit.config?.targetValue;
+  const targetUnit = habit.config?.targetUnit;
+  const subCategory = habit.config?.subCategory;
+  const timeOfDay = habit.config?.timeOfDay;
 
   return (
     <Animated.View entering={FadeIn.duration(400).delay(index * 80)}>
@@ -85,30 +90,58 @@ export const HabitCard = memo(function HabitCard({
         onPressIn={() => { scale.value = withSpring(0.97); }}
         onPressOut={() => { scale.value = withSpring(1); }}
       >
-        <Animated.View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: isDark ? '#000000' : '#6C5CE7' }, cardAnimatedStyle]}>
+        <Animated.View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: isDark ? '#000000' : accentColor }, cardAnimatedStyle]}>
           {/* Left accent bar */}
           <View style={[styles.accentBar, { backgroundColor: accentColor }]} />
 
           <View style={styles.content}>
-            {/* Top row: name + streak */}
+            {/* Top row: icon + name + streak */}
             <View style={styles.topRow}>
+              {customIconName ? (
+                <View style={[styles.iconCircle, { backgroundColor: accentColor + '1E' }]}>
+                  <Ionicons name={customIconName} size={20} color={accentColor} />
+                </View>
+              ) : null}
+
               <View style={styles.nameContainer}>
                 <Text style={[styles.habitName, { color: colors.text }]} numberOfLines={1}>{habit.name}</Text>
                 <View style={styles.badgesRow}>
-                  <View style={[styles.frequencyBadge, { backgroundColor: accentColor + '18' }]}>
-                    <Ionicons name="repeat" size={12} color={accentColor} />
+                  {subCategory ? (
+                    <View style={[styles.categoryBadge, { backgroundColor: accentColor + '18' }]}>
+                      <Text style={[styles.categoryBadgeText, { color: accentColor }]}>
+                        {subCategory}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  {targetValue ? (
+                    <View style={[styles.targetBadge, { backgroundColor: isDark ? '#374151' : '#F3F4F6' }]}>
+                      <Ionicons name="flag-outline" size={10} color={colors.textSecondary} />
+                      <Text style={[styles.targetBadgeText, { color: colors.textSecondary }]}>
+                        {targetValue} {targetUnit || ''}
+                      </Text>
+                    </View>
+                  ) : null}
+
+                  <View style={[styles.frequencyBadge, { backgroundColor: accentColor + '14' }]}>
+                    <Ionicons name="repeat" size={11} color={accentColor} />
                     <Text style={[styles.frequencyText, { color: accentColor }]}>
                       {FREQUENCY_LABELS[habit.frequencyType]}
                     </Text>
                   </View>
 
-                  {type !== 'GENERAL' && (
-                    <View style={[styles.typeBadge, { backgroundColor: isDark ? '#2B2B3C' : '#F0EDFF' }]}>
-                      <Text style={[styles.typeText, { color: colors.primary }]}>
-                        {type.toLowerCase()}
+                  {timeOfDay && timeOfDay !== 'ANYTIME' ? (
+                    <View style={[styles.timeBadge, { backgroundColor: isDark ? '#374151' : '#F3F4F6' }]}>
+                      <Ionicons
+                        name={timeOfDay === 'MORNING' ? 'sunny-outline' : timeOfDay === 'EVENING' ? 'moon-outline' : 'time-outline'}
+                        size={10}
+                        color={colors.textSecondary}
+                      />
+                      <Text style={[styles.timeBadgeText, { color: colors.textSecondary }]}>
+                        {timeOfDay.toLowerCase()}
                       </Text>
                     </View>
-                  )}
+                  ) : null}
 
                   {type === 'READING' && readingPage ? (
                     <View style={[styles.typeBadge, { backgroundColor: isDark ? '#3D2B13' : '#FEF3C7' }]}>
@@ -134,7 +167,7 @@ export const HabitCard = memo(function HabitCard({
                 <Ionicons
                   name={checkedInToday ? 'checkmark-circle' : 'play-circle-outline'}
                   size={16}
-                  color={checkedInToday ? '#00B894' : colors.primary}
+                  color={checkedInToday ? '#00B894' : accentColor}
                 />
                 <Text style={[styles.statusText, { color: colors.textSecondary }, checkedInToday ? styles.statusDone : undefined]}>
                   {checkedInToday ? 'Done today! (tap for +)' : 'Start session'}
@@ -146,7 +179,7 @@ export const HabitCard = memo(function HabitCard({
                 disabled={checkInLoading}
                 style={({ pressed }) => [
                   styles.checkButton,
-                  checkedInToday ? styles.checkButtonDone : undefined,
+                  { backgroundColor: checkedInToday ? '#00B894' : accentColor },
                   pressed ? styles.checkButtonPressed : undefined,
                 ]}
               >
@@ -208,30 +241,75 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 10,
   },
+  iconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+    marginTop: 2,
+  },
   nameContainer: {
     flex: 1,
-    marginRight: 12,
+    marginRight: 8,
   },
   habitName: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
     color: '#2D2D3A',
-    marginBottom: 5,
+    marginBottom: 4,
   },
   badgesRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    gap: 6,
+    gap: 5,
+  },
+  categoryBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  categoryBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  targetBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    gap: 3,
+  },
+  targetBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  timeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    gap: 3,
+  },
+  timeBadgeText: {
+    fontSize: 10,
+    fontWeight: '500',
+    textTransform: 'capitalize',
   },
   frequencyBadge: {
     flexDirection: 'row',
     alignSelf: 'flex-start',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 10,
-    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    gap: 3,
   },
   typeBadge: {
     paddingHorizontal: 8,

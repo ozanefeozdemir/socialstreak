@@ -358,22 +358,48 @@
   - Re-architected Docker Compose under project name `socialstreak` bringing all services (PostgreSQL, Redis, RabbitMQ, Elasticsearch) into a unified cluster.
   - Mapped `pgdata` volume to existing `src_pgdata` external volume, guaranteeing zero data loss for existing users, habits, and streak histories.
   - Upgraded Docker Elasticsearch image to `elasticsearch:9.4.2` matching the client library (`elasticsearch-java:9.4.2`), resolving the HTTP 400 `compatible-with=9` mismatch.
+- ✅ **Habit Creation Taxonomy & Blueprint Catalog (38 Presets)**:
+  - Built 10 top categories × 5 subcategories (50 subcategories total) in `front/constants/HabitCatalog.ts`.
+  - Authored 38 production-grade habit blueprints with archetypes, target goals, units, time-of-day suggestions, scientific benefits, and consistency tips.
+  - Implemented `HabitDiscoveryModal` with live search, category pills, subcategory chips, and 1-tap/2-tap adoption (button simplified to "Add").
+  - Fixed iOS nested modal white screen bug on library detail inspection by switching from nested `<Modal>` to an in-place `Animated.View` overlay with backdrop tap-to-dismiss.
+  - Revamped `front/app/habit/create.tsx` with a clean "Habits for you" button, "or create your own" splitter, and public visibility toggle.
+  - Built intelligent Category-to-Engine consistency engine (`CATEGORY_CONFIG`): eliminates invalid archetype combinations, auto-selects default engines and units per category, and dynamically syncs subcategories (e.g., Running -> Cardio 5km; Gym -> Workout 50m; Meditation -> Breathwork 15m).
+- ✅ **Specialized Session UI Engine (7 Focused Sub-Engines)**:
+  - Re-architected `HabitSessionModal` with bespoke interactive controls per archetype:
+    - Strength/Gym: Splits (Push/Pull/Legs/etc.), muscle checklist, `+ Set` counter, floating rest countdown timer (30s–120s).
+    - Cardio: Quick km presets, live pace calculator (`min/km`), surface selector.
+    - Reading: Active book memory, start/end page live delta counter, quote capture.
+    - Mindfulness: Box Breathing (4-4-4-4) & 4-7-8 relaxing, Reanimated pulsing glowing breath orb.
+    - Hydration: Quick water bottle taps (+250, +500, +750 ml), visual fluid cylinder fill progress.
+    - Skill Practice: Rep counters (`+1`, `+5`) and focus skill notes.
+    - Standard Timer: Clean focus stopwatch or fast check-in.
+  - Streamlined engine catalog: removed low-value Pomodoro and Discipline engines.
+  - Comprehensive Session Cancellation:
+    - Added `cancelSession(habitId)` to Zustand `useSessionStore` to purge in-progress sessions.
+    - Added header "Discard" button with safety confirmation alert + down-chevron "Minimize" button.
+    - Added footer "Cancel & Discard Session" button below "Complete Session".
+    - Added 1-tap `close-circle` quick-cancel button to active session pills on the dashboard in `ActiveSessionsList.tsx`.
+- ✅ **Dashboard, Cards & Social Feed Integration**:
+  - `HabitCard`: Color accent bar, custom icon, subcategory badge, target pill, time of day pill, dynamic session button.
+  - Dashboard header: Blueprint "Library" button, horizontal category & time-of-day filter chips.
+  - Social Feed & Detail: Displays logged sets, pace, pages read, and recorded notes.
 - ✅ **Verification**:
-  - Backend compile: `./gradlew compileJava` passed.
-  - Test suites: Updated `UserServiceTest` for `privacySearchable` constructor signature.
-  - Runtime health: Tested full Spring Boot boot sequence (starts cleanly in 3.4s, connects to Postgres, Redis, RabbitMQ, and verifies Elasticsearch `users` index). Tested `GET /api/user/search` via Tomcat DispatcherServlet.
+  - Frontend TypeScript compile: `npx tsc --noEmit` passed with 0 errors.
+  - Backend compile & test: `./gradlew compileJava` and `./gradlew test --tests "*ServiceTest"` passed with 0 errors.
 
 ---
+
 
 ## Backlog / Future Work
 - [x] BACKEND GET /api/users DATA LEAKAGE: Resolved via dedicated `GET /api/user/search` endpoint returning minimal `UserSearchDto` + `PublicUserRespond`.
 - [ ] Connect Discover Page search input (`front/app/(tabs)/discover.tsx` / `hooks/useUsers.ts`) to `GET /api/user/search?q={query}` instead of `GET /api/user`.
 - [ ] Add one-time bulk sync runner or admin endpoint to index pre-existing PostgreSQL users into Elasticsearch.
 - [ ] Add privacy toggle switch in Settings page (`app/settings/privacy.tsx` / `edit-profile.tsx`) to update `privacySearchable`.
-- [ ] Most common / trending habits list in Discover tab (habit templates/suggestions)
-- [ ] Add pagination, searchbar and filtering to habits list view
+- [x] Most common / trending habits list in Discover tab (habit templates/suggestions): Implemented 38-preset Habit Blueprint Library with deep taxonomy (10 categories × 5 subcategories) and 1-tap/2-tap adoption.
+- [x] Add pagination, searchbar and filtering to habits list view: Added instant keyword search and category/time-of-day filters in habits dashboard and discovery modal.
 - [ ] Add subtle timer (3 Hours left) to habit cards in habits list view to remind user check in and colorize the timer green to red according to remaining time. 
-- [ ] Public/private habit visibility toggle (backend + frontend)
+- [x] Public/private habit visibility toggle (backend + frontend)
 - [ ] Delete Habit button in habit card
 - [ ] Cheer post in feed (Currently it works but it is not instant. We should leverage RabbitMQ for real-time queueing)
 - [ ] Streak related reward or ranking system to keep user motivated.

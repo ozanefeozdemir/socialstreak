@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   Platform,
+  ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown, FadeInUp, BounceIn } from 'react-native-reanimated';
@@ -17,6 +18,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { HabitCard } from '@/components/habit/HabitCard';
 import { HabitSessionModal } from '@/components/session/HabitSessionModal';
 import { ActiveSessionsList } from '@/components/session/ActiveSessionsList';
+import { HabitDiscoveryModal } from '@/components/habit/HabitDiscoveryModal';
 import { useHabits } from '@/hooks/useHabits';
 import { useCheckIn } from '@/hooks/useCheckIns';
 import { checkInsApi } from '@/api/endpoints/checkins';
@@ -88,16 +90,32 @@ function calculateStreak(checkIns: CheckInRespond[], todayStr: string): number {
   return streak;
 }
 
+type FilterType = 'ALL' | 'MORNING' | 'AFTERNOON' | 'EVENING' | 'PENDING' | 'DONE';
+
 export default function HabitsScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const { data: habits, isLoading, refetch, isRefetching } = useHabits();
   const { data: checkInMap } = useTodayCheckIns(habits);
   const [sessionHabit, setSessionHabit] = useState<HabitRespond | null>(null);
+  const [discoveryVisible, setDiscoveryVisible] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<FilterType>('ALL');
 
   const activeHabits = habits?.filter((h) => !h.archived) ?? [];
   const completedToday = activeHabits.filter((h) => checkInMap?.[h.id]?.checkedIn).length;
   const totalActive = activeHabits.length;
+
+  const filteredHabits = useMemo(() => {
+    return activeHabits.filter((h) => {
+      const isDone = !!checkInMap?.[h.id]?.checkedIn;
+      if (activeFilter === 'PENDING') return !isDone;
+      if (activeFilter === 'DONE') return isDone;
+      if (activeFilter === 'MORNING') return h.config?.timeOfDay === 'MORNING';
+      if (activeFilter === 'AFTERNOON') return h.config?.timeOfDay === 'AFTERNOON';
+      if (activeFilter === 'EVENING') return h.config?.timeOfDay === 'EVENING';
+      return true;
+    });
+  }, [activeHabits, activeFilter, checkInMap]);
 
   const handleStartSession = useCallback((habit: HabitRespond) => {
     setSessionHabit(habit);
@@ -129,10 +147,10 @@ export default function HabitsScreen() {
 
       {/* Header */}
       <Animated.View entering={FadeInUp.duration(500)} style={styles.header}>
-        <View>
+        <View style={{ flex: 1 }}>
           <View style={styles.headerRow}>
             <Text style={[styles.greeting, { color: colors.text }]}>My Habits</Text>
-            <Ionicons name="sparkles" size={24} color="#6C5CE7" />
+            <Ionicons name="sparkles" size={22} color="#6C5CE7" />
           </View>
           <Text style={[styles.subGreeting, { color: colors.textSecondary }]}>
             {totalActive > 0
@@ -140,13 +158,30 @@ export default function HabitsScreen() {
               : 'Start building your streak!'}
           </Text>
         </View>
-        {totalActive > 0 ? (
-          <View style={styles.progressBubble}>
-            <Text style={styles.progressText}>
-              {totalActive > 0 ? Math.round((completedToday / totalActive) * 100) : 0}%
-            </Text>
-          </View>
-        ) : null}
+
+        <View style={styles.headerRightActions}>
+          {totalActive > 0 ? (
+            <View style={styles.progressBubble}>
+              <Text style={styles.progressText}>
+                {Math.round((completedToday / totalActive) * 100)}%
+              </Text>
+            </View>
+          ) : null}
+
+          <Pressable
+            style={[
+              styles.exploreBlueprintsBtn,
+              {
+                backgroundColor: isDark ? '#2D204A' : '#EDE9FE',
+                borderColor: isDark ? '#4C3B78' : '#D8D0FE',
+              },
+            ]}
+            onPress={() => setDiscoveryVisible(true)}
+          >
+            <Ionicons name="compass" size={16} color={colors.primary} />
+            <Text style={[styles.exploreBlueprintsText, { color: colors.primary }]}>Library</Text>
+          </Pressable>
+        </View>
       </Animated.View>
 
       {/* Progress bar */}
@@ -163,6 +198,45 @@ export default function HabitsScreen() {
         </Animated.View>
       ) : null}
 
+      {/* Filter Chips Bar */}
+      {totalActive > 0 ? (
+        <View style={styles.filterBarWrap}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterBarContent}>
+            {[
+              { id: 'ALL', label: 'All' },
+              { id: 'PENDING', label: '⏳ Pending' },
+              { id: 'DONE', label: '✓ Done' },
+              { id: 'MORNING', label: '🌅 Morning' },
+              { id: 'AFTERNOON', label: '☀️ Afternoon' },
+              { id: 'EVENING', label: '🌙 Evening' },
+            ].map((chip) => {
+              const isActive = activeFilter === chip.id;
+              return (
+                <Pressable
+                  key={chip.id}
+                  style={[
+                    styles.filterChip,
+                    isActive
+                      ? [styles.filterChipActive, { backgroundColor: colors.primary }]
+                      : { backgroundColor: colors.card, borderColor: colors.border },
+                  ]}
+                  onPress={() => setActiveFilter(chip.id as FilterType)}
+                >
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      { color: isActive ? '#FFFFFF' : colors.text },
+                    ]}
+                  >
+                    {chip.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      ) : null}
+
       {/* Active Sessions List */}
       <ActiveSessionsList onOpenSession={handleStartSession} />
 
@@ -175,16 +249,23 @@ export default function HabitsScreen() {
       ) : activeHabits.length === 0 ? (
         <Animated.View entering={BounceIn.duration(800)} style={styles.emptyContainer}>
           <View style={styles.emptyBubble}>
-            <Ionicons name="leaf" size={36} color="#27AE60" />
+            <Ionicons name="compass" size={38} color="#6C5CE7" />
           </View>
-          <Text style={[styles.emptyTitle, { color: colors.text }]}>No habits yet!</Text>
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>Start Your Daily Streak!</Text>
           <Text style={styles.emptySubtitle}>
-            Tap the button below to start{'\n'}your first streak
+            Choose from 38+ pre-built blueprints or create your own customized habit
           </Text>
+          <Pressable
+            style={[styles.emptyCTA, { backgroundColor: colors.primary }]}
+            onPress={() => setDiscoveryVisible(true)}
+          >
+            <Ionicons name="sparkles" size={18} color="#FFFFFF" />
+            <Text style={styles.emptyCTAText}>Browse 38+ Habit Blueprints</Text>
+          </Pressable>
         </Animated.View>
       ) : (
         <FlatList
-          data={activeHabits}
+          data={filteredHabits}
           renderItem={renderHabitCard}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
@@ -219,6 +300,16 @@ export default function HabitsScreen() {
         visible={!!sessionHabit}
         habit={sessionHabit}
         onClose={() => setSessionHabit(null)}
+      />
+
+      {/* Habit Discovery Modal */}
+      <HabitDiscoveryModal
+        visible={discoveryVisible}
+        onClose={() => setDiscoveryVisible(false)}
+        onSelectPresetToCustomize={(preset) => {
+          setDiscoveryVisible(false);
+          router.push('/habit/create');
+        }}
       />
     </View>
   );
@@ -278,10 +369,28 @@ const styles = StyleSheet.create({
     color: '#8B8BA0',
     marginTop: 4,
   },
+  headerRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  exploreBlueprintsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 5,
+  },
+  exploreBlueprintsText: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
   progressBubble: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#6C5CE7',
     alignItems: 'center',
     justifyContent: 'center',
@@ -293,15 +402,39 @@ const styles = StyleSheet.create({
   },
   progressText: {
     color: '#FFF',
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '800',
+  },
+
+  // Filter Bar
+  filterBarWrap: {
+    height: 42,
+    marginBottom: 8,
+  },
+  filterBarContent: {
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    gap: 8,
+  },
+  filterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  filterChipActive: {
+    borderColor: 'transparent',
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
 
   // Progress bar
   progressBarContainer: {
     paddingHorizontal: 24,
     paddingTop: 8,
-    paddingBottom: 16,
+    paddingBottom: 12,
   },
   progressBarTrack: {
     height: 8,
@@ -364,11 +497,30 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   emptySubtitle: {
-    fontSize: 15,
+    fontSize: 14,
     color: '#8B8BA0',
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 20,
     fontWeight: '500',
+    marginBottom: 20,
+  },
+  emptyCTA: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 16,
+    gap: 8,
+    shadowColor: '#6C5CE7',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  emptyCTAText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
   },
 
   // FAB

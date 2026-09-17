@@ -32,6 +32,9 @@ class UserServiceTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private com.example.back.messaging.RabbitMQProducer rabbitMQProducer;
+
     @InjectMocks
     private UserService userService;
 

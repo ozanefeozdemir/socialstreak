@@ -73,8 +73,14 @@ export default function HabitDetailScreen() {
   const streak = checkIns ? calculateStreak(checkIns) : 0;
   const today = new Date().toISOString().slice(0, 10);
   const checkedInToday = checkIns?.some((c) => c.checkInDate === today) ?? false;
-  const accentColor = habit ? (FREQUENCY_COLORS[habit.frequencyType] ?? '#6C5CE7') : '#6C5CE7';
+  const accentColor = habit?.config?.color || (habit ? (FREQUENCY_COLORS[habit.frequencyType] ?? '#6C5CE7') : '#6C5CE7');
   const type = habit?.habitType || 'GENERAL';
+  const customIconName = habit?.config?.icon as keyof typeof Ionicons.glyphMap | undefined;
+  const archetype = habit?.config?.sessionArchetype;
+  const subCategory = habit?.config?.subCategory;
+  const targetValue = habit?.config?.targetValue;
+  const targetUnit = habit?.config?.targetUnit;
+  const timeOfDay = habit?.config?.timeOfDay;
 
   // Recent check-ins (last 7)
   const recentCheckIns = checkIns
@@ -129,26 +135,64 @@ export default function HabitDetailScreen() {
         {/* Header card */}
         <Animated.View
           entering={FadeInDown.springify().damping(18).delay(100)}
-          style={[styles.headerCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: isDark ? '#000000' : '#6C5CE7' }]}
+          style={[styles.headerCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: isDark ? '#000000' : accentColor }]}
         >
-          <View style={[styles.accentDot, { backgroundColor: accentColor }]} />
-          <Text style={[styles.habitName, { color: colors.text }]}>{habit.name}</Text>
+          <View style={styles.headerHeroRow}>
+            {customIconName ? (
+              <View style={[styles.heroIconWrap, { backgroundColor: accentColor + '20' }]}>
+                <Ionicons name={customIconName} size={28} color={accentColor} />
+              </View>
+            ) : (
+              <View style={[styles.accentDot, { backgroundColor: accentColor }]} />
+            )}
+
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.habitName, { color: colors.text }]}>{habit.name}</Text>
+              {subCategory ? (
+                <Text style={[styles.habitSubCategory, { color: accentColor }]}>
+                  {subCategory}
+                </Text>
+              ) : null}
+            </View>
+          </View>
           
           <View style={styles.badgesRow}>
             <View style={[styles.frequencyBadge, { backgroundColor: accentColor + '18' }]}>
-              <Ionicons name="repeat" size={14} color={accentColor} />
+              <Ionicons name="repeat" size={13} color={accentColor} />
               <Text style={[styles.frequencyText, { color: accentColor }]}>
                 {FREQUENCY_LABELS[habit.frequencyType]}
               </Text>
             </View>
 
-            {type !== 'GENERAL' && (
-              <View style={[styles.typeBadge, { backgroundColor: colors.primary + '18' }]}>
-                <Text style={[styles.typeText, { color: colors.primary }]}>
-                  {type}
+            {targetValue ? (
+              <View style={[styles.typeBadge, { backgroundColor: isDark ? '#374151' : '#F3F4F6' }]}>
+                <Ionicons name="flag-outline" size={12} color={colors.textSecondary} />
+                <Text style={[styles.typeText, { color: colors.text }]}>
+                  {targetValue} {targetUnit || ''}
                 </Text>
               </View>
-            )}
+            ) : null}
+
+            {timeOfDay && timeOfDay !== 'ANYTIME' ? (
+              <View style={[styles.typeBadge, { backgroundColor: isDark ? '#374151' : '#F3F4F6' }]}>
+                <Ionicons
+                  name={timeOfDay === 'MORNING' ? 'sunny-outline' : timeOfDay === 'EVENING' ? 'moon-outline' : 'time-outline'}
+                  size={12}
+                  color={colors.textSecondary}
+                />
+                <Text style={[styles.typeText, { color: colors.textSecondary }]}>
+                  {timeOfDay.toLowerCase()}
+                </Text>
+              </View>
+            ) : null}
+
+            {archetype ? (
+              <View style={[styles.typeBadge, { backgroundColor: accentColor + '18' }]}>
+                <Text style={[styles.typeText, { color: accentColor }]}>
+                  {archetype}
+                </Text>
+              </View>
+            ) : null}
 
             {type === 'READING' && habit.config?.currentPage ? (
               <View style={[styles.typeBadge, { backgroundColor: '#FEF3C7' }]}>
@@ -173,7 +217,7 @@ export default function HabitDetailScreen() {
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Total</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: isDark ? '#000000' : '#6C5CE7' }]}>
-            <Ionicons name="calendar" size={24} color={colors.primary} />
+            <Ionicons name="calendar" size={24} color={accentColor} />
             <Text style={[styles.statValue, { color: colors.text }]}>
               {habit.createdAt ? new Date(habit.createdAt).toLocaleDateString('en', { month: 'short', day: 'numeric' }) : '—'}
             </Text>
@@ -186,6 +230,7 @@ export default function HabitDetailScreen() {
           <Pressable
             style={({ pressed }) => [
               styles.checkInButton,
+              { backgroundColor: checkedInToday ? '#00B894' : accentColor },
               checkedInToday ? styles.checkInDone : undefined,
               pressed ? styles.checkInPressed : undefined,
             ]}
@@ -197,7 +242,7 @@ export default function HabitDetailScreen() {
               color="#fff"
             />
             <Text style={styles.checkInText}>
-              {checkedInToday ? 'Done today! Log another session' : `Start ${type !== 'GENERAL' ? type.toLowerCase() : ''} session`}
+              {checkedInToday ? 'Done today! Log another session' : `Start session`}
             </Text>
           </Pressable>
         </Animated.View>
@@ -211,7 +256,7 @@ export default function HabitDetailScreen() {
                 <View key={session.id} style={styles.sessionItem}>
                   <View style={styles.sessionItemTop}>
                     <View style={styles.activityDot}>
-                      <Ionicons name="flash" size={12} color="#6C5CE7" />
+                      <Ionicons name="flash" size={12} color={accentColor} />
                     </View>
                     <Text style={[styles.activityDate, { color: colors.text }]}>
                       {session.createdAt
@@ -236,6 +281,14 @@ export default function HabitDetailScreen() {
 
                   {/* Telemetry details */}
                   <View style={styles.sessionChipsRow}>
+                    {session.sessionData?.setsCount != null && session.sessionData.setsCount > 0 && (
+                      <View style={[styles.sessionChip, { backgroundColor: isDark ? '#3D201A' : '#FFE8DF' }]}>
+                        <Text style={[styles.sessionChipText, { color: '#E17055' }]}>
+                          {session.sessionData.setsCount} sets
+                        </Text>
+                      </View>
+                    )}
+
                     {Array.isArray(session.sessionData?.bodyParts) &&
                       session.sessionData.bodyParts.map((bp: string) => (
                         <View key={bp} style={[styles.sessionChip, { backgroundColor: isDark ? '#15314B' : '#E0F2FE' }]}>
@@ -254,11 +307,44 @@ export default function HabitDetailScreen() {
                       </View>
                     )}
 
+                    {session.sessionData?.avgPace != null && (
+                      <View style={[styles.sessionChip, { backgroundColor: isDark ? '#103926' : '#DCFCE7' }]}>
+                        <Text style={[styles.sessionChipText, { color: '#16A34A' }]}>
+                          {session.sessionData.avgPace}
+                        </Text>
+                      </View>
+                    )}
+
                     {session.sessionData?.pagesRead != null && (
                       <View style={[styles.sessionChip, { backgroundColor: isDark ? '#3D2B13' : '#FEF3C7' }]}>
                         <Ionicons name="book-outline" size={11} color="#D97706" />
                         <Text style={[styles.sessionChipText, { color: '#D97706' }]}>
-                          +{session.sessionData.pagesRead} pages (to p. {session.sessionData.endPage})
+                          +{session.sessionData.pagesRead} pages
+                        </Text>
+                      </View>
+                    )}
+
+                    {session.sessionData?.distractionsDefeated != null && session.sessionData.distractionsDefeated > 0 && (
+                      <View style={[styles.sessionChip, { backgroundColor: isDark ? '#2E204A' : '#EDE9FE' }]}>
+                        <Text style={[styles.sessionChipText, { color: '#6C5CE7' }]}>
+                          {session.sessionData.distractionsDefeated} urges defeated 🛡️
+                        </Text>
+                      </View>
+                    )}
+
+                    {session.sessionData?.consumedMl != null && (
+                      <View style={[styles.sessionChip, { backgroundColor: isDark ? '#15314B' : '#E0F2FE' }]}>
+                        <Ionicons name="water-outline" size={11} color="#0984E3" />
+                        <Text style={[styles.sessionChipText, { color: '#0984E3' }]}>
+                          {session.sessionData.consumedMl} ml
+                        </Text>
+                      </View>
+                    )}
+
+                    {session.sessionData?.urgesResisted != null && (
+                      <View style={[styles.sessionChip, { backgroundColor: isDark ? '#3D201A' : '#FFE8EC' }]}>
+                        <Text style={[styles.sessionChipText, { color: '#E84393' }]}>
+                          {session.sessionData.urgesResisted} cravings conquered 🛡️
                         </Text>
                       </View>
                     )}
@@ -377,6 +463,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#F0EDFF',
   },
+  headerHeroRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    width: '100%',
+  },
+  heroIconWrap: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
   accentDot: {
     width: 12,
     height: 12,
@@ -384,12 +484,16 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   habitName: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: '#2D2D3A',
-    textAlign: 'center',
-    marginBottom: 10,
+    fontSize: 20,
+    fontWeight: '800',
     letterSpacing: -0.3,
+  },
+  habitSubCategory: {
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginTop: 2,
   },
   frequencyBadge: {
     flexDirection: 'row',

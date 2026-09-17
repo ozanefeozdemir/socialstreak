@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Switch,
+  TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown, FadeInUp, BounceIn } from 'react-native-reanimated';
@@ -16,20 +17,161 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 
 import { Input } from '@/components/ui/Input';
+import { HabitDiscoveryModal } from '@/components/habit/HabitDiscoveryModal';
 import { useCreateHabit } from '@/hooks/useHabits';
-import type { FrequencyType, HabitType } from '@/types';
+import {
+  HABIT_CATEGORIES,
+} from '@/constants/HabitCatalog';
+import type {
+  FrequencyType,
+  HabitType,
+  HabitCategory,
+  SessionArchetype,
+  TimeOfDay,
+  HabitCatalogPreset,
+} from '@/types';
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
 
-const HABIT_TYPES: { value: HabitType; label: string; icon: IoniconsName }[] = [
-  { value: 'GENERAL', label: 'General', icon: 'sparkles' },
-  { value: 'WORKOUT', label: 'Workout', icon: 'barbell' },
-  { value: 'RUNNING', label: 'Running', icon: 'walk' },
-  { value: 'READING', label: 'Reading', icon: 'book' },
-  { value: 'MEDITATION', label: 'Meditation', icon: 'leaf' },
-  { value: 'WATER', label: 'Water', icon: 'water' },
-  { value: 'CUSTOM', label: 'Custom', icon: 'options' },
-];
+const SESSION_ARCHETYPES: {
+  value: SessionArchetype;
+  label: string;
+  icon: IoniconsName;
+  defaultHabitType: HabitType;
+  description: string;
+}[] = [
+    {
+      value: 'WORKOUT',
+      label: 'Strength / Gym',
+      icon: 'barbell',
+      defaultHabitType: 'WORKOUT',
+      description: 'Split presets, muscle checklist, sets & rest timer',
+    },
+    {
+      value: 'CARDIO',
+      label: 'Cardio / Run',
+      icon: 'walk',
+      defaultHabitType: 'RUNNING',
+      description: 'Stopwatch, distance, pace & surface tracking',
+    },
+    {
+      value: 'READING',
+      label: 'Reading & Book',
+      icon: 'book',
+      defaultHabitType: 'READING',
+      description: 'Page delta counter, book memory & insights',
+    },
+    {
+      value: 'BREATHWORK',
+      label: 'Breath & Calm',
+      icon: 'leaf',
+      defaultHabitType: 'MEDITATION',
+      description: 'Animated breathing orb (Box & 4-7-8 rhythm)',
+    },
+    {
+      value: 'HYDRATION',
+      label: 'Hydration Tally',
+      icon: 'water',
+      defaultHabitType: 'WATER',
+      description: '1-tap bottle logger & fill cylinder',
+    },
+    {
+      value: 'SKILL',
+      label: 'Skill Practice',
+      icon: 'code-slash',
+      defaultHabitType: 'GENERAL',
+      description: 'Repetitions, exercises & focus rating',
+    },
+    {
+      value: 'CHECKLIST',
+      label: 'Standard Timer / Check',
+      icon: 'timer-outline',
+      defaultHabitType: 'GENERAL',
+      description: 'Clean stopwatch timer or quick check-in',
+    },
+  ];
+
+const CATEGORY_CONFIG: Record<
+  HabitCategory,
+  {
+    defaultArchetype: SessionArchetype;
+    defaultIcon: IoniconsName;
+    defaultUnit: string;
+    defaultValue: string;
+    allowedArchetypes: SessionArchetype[];
+  }
+> = {
+  FITNESS: {
+    defaultArchetype: 'WORKOUT',
+    defaultIcon: 'barbell',
+    defaultUnit: 'mins',
+    defaultValue: '50',
+    allowedArchetypes: ['WORKOUT', 'CARDIO', 'CHECKLIST'],
+  },
+  MINDFULNESS: {
+    defaultArchetype: 'BREATHWORK',
+    defaultIcon: 'leaf',
+    defaultUnit: 'mins',
+    defaultValue: '15',
+    allowedArchetypes: ['BREATHWORK', 'CHECKLIST'],
+  },
+  HEALTH: {
+    defaultArchetype: 'HYDRATION',
+    defaultIcon: 'water',
+    defaultUnit: 'ml',
+    defaultValue: '2500',
+    allowedArchetypes: ['HYDRATION', 'CHECKLIST'],
+  },
+  LEARNING: {
+    defaultArchetype: 'READING',
+    defaultIcon: 'book',
+    defaultUnit: 'pages',
+    defaultValue: '20',
+    allowedArchetypes: ['READING', 'SKILL', 'CHECKLIST'],
+  },
+  PRODUCTIVITY: {
+    defaultArchetype: 'CHECKLIST',
+    defaultIcon: 'hourglass',
+    defaultUnit: 'mins',
+    defaultValue: '45',
+    allowedArchetypes: ['SKILL', 'CHECKLIST'],
+  },
+  CREATIVE: {
+    defaultArchetype: 'SKILL',
+    defaultIcon: 'musical-notes',
+    defaultUnit: 'mins',
+    defaultValue: '30',
+    allowedArchetypes: ['SKILL', 'CHECKLIST'],
+  },
+  SLEEP: {
+    defaultArchetype: 'CHECKLIST',
+    defaultIcon: 'bed',
+    defaultUnit: 'hours',
+    defaultValue: '8',
+    allowedArchetypes: ['CHECKLIST'],
+  },
+  FINANCE: {
+    defaultArchetype: 'CHECKLIST',
+    defaultIcon: 'wallet',
+    defaultUnit: 'day',
+    defaultValue: '1',
+    allowedArchetypes: ['CHECKLIST'],
+  },
+  SOCIAL: {
+    defaultArchetype: 'CHECKLIST',
+    defaultIcon: 'people',
+    defaultUnit: 'mins',
+    defaultValue: '15',
+    allowedArchetypes: ['CHECKLIST'],
+  },
+  DISCIPLINE: {
+    defaultArchetype: 'CHECKLIST',
+    defaultIcon: 'shield-checkmark',
+    defaultUnit: 'day',
+    defaultValue: '1',
+    allowedArchetypes: ['CHECKLIST'],
+  },
+};
 
 const FREQUENCIES: { value: FrequencyType; label: string; icon: IoniconsName }[] = [
   { value: 'DAILY', label: 'Daily', icon: 'sunny' },
@@ -38,16 +180,150 @@ const FREQUENCIES: { value: FrequencyType; label: string; icon: IoniconsName }[]
   { value: 'CUSTOM', label: 'Custom', icon: 'flash' },
 ];
 
+const TIME_OF_DAY_OPTIONS: { value: TimeOfDay; label: string; icon: IoniconsName }[] = [
+  { value: 'MORNING', label: 'Morning', icon: 'sunny-outline' },
+  { value: 'AFTERNOON', label: 'Afternoon', icon: 'partly-sunny-outline' },
+  { value: 'EVENING', label: 'Evening', icon: 'moon-outline' },
+  { value: 'ANYTIME', label: 'Anytime', icon: 'time-outline' },
+];
+
+const CURATED_ICONS: IoniconsName[] = [
+  'barbell',
+  'walk',
+  'bicycle',
+  'basketball',
+  'leaf',
+  'heart',
+  'water',
+  'nutrition',
+  'bed',
+  'book',
+  'code-slash',
+  'language',
+  'musical-notes',
+  'pencil',
+  'hourglass',
+  'flash',
+  'wallet',
+  'people',
+  'shield-checkmark',
+  'sunny',
+  'moon',
+  'trophy',
+  'sparkles',
+  'compass',
+];
+
+const CURATED_COLORS = [
+  '#FF7675', // Coral Red
+  '#E17055', // Terracotta
+  '#FDCB6E', // Sun Gold
+  '#00B894', // Mint Emerald
+  '#00CEC9', // Persian Cyan
+  '#0984E3', // Electric Blue
+  '#6C5CE7', // Royal Purple
+  '#E84393', // Rose Pink
+];
+
 export default function CreateHabitScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const createHabit = useCreateHabit();
 
+  const [discoveryModalVisible, setDiscoveryModalVisible] = useState(false);
+
+  // Form State
   const [name, setName] = useState('');
-  const [habitType, setHabitType] = useState<HabitType>('GENERAL');
+  const [category, setCategory] = useState<HabitCategory>('FITNESS');
+  const [subCategory, setSubCategory] = useState('Gym & Lifting');
+  const [sessionArchetype, setSessionArchetype] = useState<SessionArchetype>('WORKOUT');
+  const [targetValue, setTargetValue] = useState('50');
+  const [targetUnit, setTargetUnit] = useState('mins');
+  const [timeOfDay, setTimeOfDay] = useState<TimeOfDay>('ANYTIME');
+  const [selectedIcon, setSelectedIcon] = useState<IoniconsName>('barbell');
+  const [selectedColor, setSelectedColor] = useState('#FF7675');
   const [frequency, setFrequency] = useState<FrequencyType>('DAILY');
   const [isPublic, setIsPublic] = useState(true);
   const [error, setError] = useState('');
+
+  const availableArchetypes = useMemo(() => {
+    const allowed = CATEGORY_CONFIG[category]?.allowedArchetypes || ['CHECKLIST'];
+    return SESSION_ARCHETYPES.filter((a) => allowed.includes(a.value));
+  }, [category]);
+
+  // When category changes, update subcategory and default archetype
+  const handleCategoryChange = (newCat: HabitCategory) => {
+    setCategory(newCat);
+    const meta = HABIT_CATEGORIES.find((c) => c.id === newCat);
+    const cfg = CATEGORY_CONFIG[newCat];
+    if (meta && meta.subCategories.length > 0) {
+      setSubCategory(meta.subCategories[0]);
+      setSelectedColor(meta.color);
+    }
+    if (cfg) {
+      setSessionArchetype(cfg.defaultArchetype);
+      setSelectedIcon(cfg.defaultIcon);
+      setTargetUnit(cfg.defaultUnit);
+      setTargetValue(cfg.defaultValue);
+    }
+  };
+
+  const handleSubCategoryChange = (sub: string) => {
+    setSubCategory(sub);
+    const lower = sub.toLowerCase();
+    if (category === 'FITNESS') {
+      if (lower.includes('running') || lower.includes('jogging') || lower.includes('cycling') || lower.includes('swim')) {
+        setSessionArchetype('CARDIO');
+        setSelectedIcon('walk');
+        setTargetUnit('km');
+        setTargetValue('5');
+      } else if (lower.includes('gym') || lower.includes('lifting') || lower.includes('calisthenics')) {
+        setSessionArchetype('WORKOUT');
+        setSelectedIcon('barbell');
+        setTargetUnit('mins');
+        setTargetValue('50');
+      }
+    } else if (category === 'MINDFULNESS') {
+      if (lower.includes('breath') || lower.includes('meditat')) {
+        setSessionArchetype('BREATHWORK');
+        setSelectedIcon('leaf');
+        setTargetUnit('mins');
+        setTargetValue('15');
+      } else {
+        setSessionArchetype('CHECKLIST');
+        setSelectedIcon('journal');
+        setTargetUnit('mins');
+        setTargetValue('10');
+      }
+    } else if (category === 'LEARNING') {
+      if (lower.includes('read') || lower.includes('book')) {
+        setSessionArchetype('READING');
+        setSelectedIcon('book');
+        setTargetUnit('pages');
+        setTargetValue('20');
+      } else {
+        setSessionArchetype('SKILL');
+        setSelectedIcon(lower.includes('code') ? 'code-slash' : 'pencil');
+        setTargetUnit('mins');
+        setTargetValue('30');
+      }
+    }
+  };
+
+  // Pre-fill from preset selected in discovery modal
+  const handleSelectPresetToCustomize = (preset: HabitCatalogPreset) => {
+    setName(preset.name);
+    setCategory(preset.category);
+    setSubCategory(preset.subCategory);
+    setSessionArchetype(preset.sessionArchetype);
+    setTargetValue(String(preset.targetValue));
+    setTargetUnit(preset.targetUnit);
+    setTimeOfDay(preset.timeOfDay);
+    setSelectedIcon(preset.icon as IoniconsName);
+    setSelectedColor(preset.color);
+    setFrequency(preset.frequencyType);
+    setError('');
+  };
 
   const handleCreate = async () => {
     if (!name.trim()) {
@@ -56,11 +332,24 @@ export default function CreateHabitScreen() {
     }
 
     setError('');
+    const archetypeObj = SESSION_ARCHETYPES.find((a) => a.value === sessionArchetype);
+    const habitType: HabitType = archetypeObj ? archetypeObj.defaultHabitType : 'GENERAL';
+
     try {
       await createHabit.mutateAsync({
         name: name.trim(),
         frequencyType: frequency,
         habitType,
+        config: {
+          category,
+          subCategory,
+          sessionArchetype,
+          icon: selectedIcon,
+          color: selectedColor,
+          targetValue: targetValue ? parseFloat(targetValue) : undefined,
+          targetUnit: targetUnit.trim() || undefined,
+          timeOfDay,
+        },
         isPublic,
       });
       router.back();
@@ -69,6 +358,8 @@ export default function CreateHabitScreen() {
       setError(message);
     }
   };
+
+  const activeCategoryMeta = HABIT_CATEGORIES.find((c) => c.id === category);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -93,346 +384,787 @@ export default function CreateHabitScreen() {
             </Pressable>
           </Animated.View>
 
-          {/* Mascot */}
-          <Animated.View entering={BounceIn.duration(800).delay(100)} style={styles.mascotContainer}>
-            <View style={[styles.mascotBubble, isDark && { backgroundColor: colors.border }]}>
-              <Ionicons name="flag" size={32} color={colors.primary} />
-            </View>
+          {/* Quick Browse Blueprint Banner */}
+          <Animated.View entering={FadeInDown.duration(450)}>
+            <Pressable
+              style={[
+                styles.blueprintBanner,
+                {
+                  backgroundColor: isDark ? '#2D204A' : '#EDE9FE',
+                  borderColor: isDark ? '#4C3B78' : '#D8D0FE',
+                },
+              ]}
+              onPress={() => setDiscoveryModalVisible(true)}
+            >
+              <View style={styles.blueprintBannerLeft}>
+                <View style={[styles.blueprintBannerIcon, { backgroundColor: colors.primary }]}>
+                  <Ionicons name="sparkles" size={20} color="#FFFFFF" />
+                </View>
+                <Text style={[styles.blueprintBannerTitle, { color: colors.primary }]}>
+                  Habits for you
+                </Text>
+              </View>
+              <View style={[styles.blueprintBannerArrow, { backgroundColor: colors.primary + '20' }]}>
+                <Ionicons name="arrow-forward" size={16} color={colors.primary} />
+              </View>
+            </Pressable>
           </Animated.View>
 
-          {/* Title */}
-          <Animated.View entering={FadeInUp.duration(500).delay(200)} style={styles.titleContainer}>
-            <Text style={[styles.title, { color: colors.text }]}>New Habit</Text>
-            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>What do you want to track?</Text>
-          </Animated.View>
+          {/* Splitter: or create your own */}
+          <View style={styles.splitterRow}>
+            <View style={[styles.splitterLine, { backgroundColor: colors.border }]} />
+            <Text style={[styles.splitterText, { color: colors.textSecondary }]}>
+              or create your own
+            </Text>
+            <View style={[styles.splitterLine, { backgroundColor: colors.border }]} />
+          </View>
 
-          {/* Card */}
+          {/* Main Configuration Card */}
           <Animated.View
-            entering={FadeInDown.springify().damping(18).delay(300)}
-            style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: isDark ? '#000000' : '#6C5CE7' }]}
+            entering={FadeInDown.springify().damping(18).delay(200)}
+            style={[
+              styles.card,
+              {
+                backgroundColor: colors.card,
+                borderColor: colors.border,
+                shadowColor: isDark ? '#000000' : selectedColor,
+              },
+            ]}
           >
+            {/* Habit Name Input */}
+            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>HABIT TITLE</Text>
             <Input
-              icon="✏️"
-              placeholder="e.g., Read 30 minutes, Run 5km..."
+              placeholder="e.g., Push Workout, 5K Run, 25 Pages..."
               value={name}
-              onChangeText={(v) => { setName(v); setError(''); }}
+              onChangeText={(v) => {
+                setName(v);
+                setError('');
+              }}
               error={error}
             />
 
-            {/* Habit Type selector */}
-            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>HABIT TYPE</Text>
-            <View style={styles.typeGrid}>
-              {HABIT_TYPES.map((t) => (
-                <Pressable
-                  key={t.value}
-                  style={[
-                    styles.typeChip,
-                    { backgroundColor: isDark ? colors.background : '#F8F8FE', borderColor: colors.border },
-                    habitType === t.value ? styles.frequencyChipActive : undefined,
-                  ]}
-                  onPress={() => setHabitType(t.value)}
-                >
-                  <Ionicons
-                    name={t.icon}
-                    size={15}
-                    color={habitType === t.value ? '#FFFFFF' : colors.textSecondary}
-                  />
-                  <Text
+            {/* 1. Category Selector (10 Top Categories) */}
+            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>TOP CATEGORY</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoryScroll}
+            >
+              {HABIT_CATEGORIES.map((cat) => {
+                const isCatActive = category === cat.id;
+                return (
+                  <Pressable
+                    key={cat.id}
                     style={[
-                      styles.typeLabel,
-                      { color: colors.text },
-                      habitType === t.value ? styles.frequencyLabelActive : undefined,
+                      styles.categoryPill,
+                      isCatActive
+                        ? [styles.categoryPillActive, { backgroundColor: cat.color }]
+                        : { backgroundColor: isDark ? colors.background : '#F8F8FE', borderColor: colors.border },
                     ]}
+                    onPress={() => handleCategoryChange(cat.id)}
                   >
-                    {t.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+                    <Ionicons
+                      name={cat.icon as IoniconsName}
+                      size={15}
+                      color={isCatActive ? '#FFFFFF' : cat.color}
+                    />
+                    <Text
+                      style={[
+                        styles.categoryPillText,
+                        { color: isCatActive ? '#FFFFFF' : colors.text },
+                      ]}
+                    >
+                      {cat.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
 
-            {/* Frequency selector */}
-            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>HOW OFTEN?</Text>
-            <View style={styles.frequencyGrid}>
-              {FREQUENCIES.map((f) => (
-                <Pressable
-                  key={f.value}
+            {/* Subcategory Selector */}
+            {activeCategoryMeta && (
+              <View style={styles.subCategoryBlock}>
+                <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
+                  SUBCATEGORY ({activeCategoryMeta.label})
+                </Text>
+                <View style={styles.subCategoryChipsRow}>
+                  {activeCategoryMeta.subCategories.map((sub) => {
+                    const isSubActive = subCategory === sub;
+                    return (
+                      <Pressable
+                        key={sub}
+                        style={[
+                          styles.subChip,
+                          isSubActive
+                            ? [styles.subChipActive, { backgroundColor: selectedColor }]
+                            : { backgroundColor: isDark ? colors.background : '#F3F4F6', borderColor: colors.border },
+                        ]}
+                        onPress={() => handleSubCategoryChange(sub)}
+                      >
+                        <Text
+                          style={[
+                            styles.subChipText,
+                            { color: isSubActive ? '#FFFFFF' : colors.text },
+                          ]}
+                        >
+                          {sub}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+
+            {/* 2. Specialized Session Archetype */}
+            <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: 16 }]}>
+              SESSION ENGINE
+            </Text>
+            {availableArchetypes.length === 1 ? (
+              <View
+                style={[
+                  styles.singleEngineCard,
+                  {
+                    borderColor: colors.border,
+                    backgroundColor: isDark ? colors.background : '#F9FAFB',
+                  },
+                ]}
+              >
+                <View
                   style={[
-                    styles.frequencyChip,
-                    { backgroundColor: isDark ? colors.background : '#F8F8FE', borderColor: colors.border },
-                    frequency === f.value ? styles.frequencyChipActive : undefined,
+                    styles.archetypeIconWrap,
+                    { backgroundColor: selectedColor },
                   ]}
-                  onPress={() => setFrequency(f.value)}
                 >
                   <Ionicons
-                    name={f.icon}
+                    name={availableArchetypes[0].icon}
                     size={18}
-                    color={frequency === f.value ? '#FFFFFF' : colors.textSecondary}
+                    color="#FFFFFF"
                   />
-                  <Text
-                    style={[
-                      styles.frequencyLabel,
-                      { color: colors.text },
-                      frequency === f.value ? styles.frequencyLabelActive : undefined,
-                    ]}
-                  >
-                    {f.label}
+                </View>
+                <View style={styles.archetypeTextWrap}>
+                  <Text style={[styles.archetypeTitle, { color: colors.text }]}>
+                    {availableArchetypes[0].label}
                   </Text>
+                  <Text style={[styles.archetypeDesc, { color: colors.textSecondary }]}>
+                    {availableArchetypes[0].description}
+                  </Text>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.archetypeGrid}>
+                {availableArchetypes.map((arch) => {
+                  const isArchActive = sessionArchetype === arch.value;
+                  return (
+                    <Pressable
+                      key={arch.value}
+                      style={[
+                        styles.archetypeCard,
+                        isArchActive
+                          ? [
+                            styles.archetypeCardActive,
+                            {
+                              borderColor: selectedColor,
+                              backgroundColor: selectedColor + '12',
+                            },
+                          ]
+                          : {
+                            backgroundColor: isDark ? colors.background : '#F9FAFB',
+                            borderColor: colors.border,
+                          },
+                      ]}
+                      onPress={() => setSessionArchetype(arch.value)}
+                    >
+                      <View
+                        style={[
+                          styles.archetypeIconWrap,
+                          {
+                            backgroundColor: isArchActive ? selectedColor : isDark ? '#374151' : '#E5E7EB',
+                          },
+                        ]}
+                      >
+                        <Ionicons
+                          name={arch.icon}
+                          size={18}
+                          color={isArchActive ? '#FFFFFF' : colors.textSecondary}
+                        />
+                      </View>
+                      <View style={styles.archetypeTextWrap}>
+                        <Text
+                          style={[
+                            styles.archetypeTitle,
+                            { color: isArchActive ? selectedColor : colors.text },
+                          ]}
+                        >
+                          {arch.label}
+                        </Text>
+                        <Text style={[styles.archetypeDesc, { color: colors.textSecondary }]} numberOfLines={2}>
+                          {arch.description}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+
+            {/* 3. Target Goal & Unit */}
+            <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: 16 }]}>
+              TARGET GOAL PER SESSION / DAY
+            </Text>
+            <View style={styles.targetRow}>
+              <View style={styles.targetInputWrap}>
+                <TextInput
+                  style={[
+                    styles.targetInput,
+                    {
+                      backgroundColor: isDark ? colors.background : '#F8F8FE',
+                      borderColor: colors.border,
+                      color: colors.text,
+                    },
+                  ]}
+                  keyboardType="numeric"
+                  placeholder="50"
+                  placeholderTextColor={colors.textSecondary}
+                  value={targetValue}
+                  onChangeText={setTargetValue}
+                />
+              </View>
+
+              <View style={styles.targetUnitWrap}>
+                <TextInput
+                  style={[
+                    styles.targetInput,
+                    {
+                      backgroundColor: isDark ? colors.background : '#F8F8FE',
+                      borderColor: colors.border,
+                      color: colors.text,
+                    },
+                  ]}
+                  placeholder="mins, km, pages..."
+                  placeholderTextColor={colors.textSecondary}
+                  value={targetUnit}
+                  onChangeText={setTargetUnit}
+                />
+              </View>
+            </View>
+
+            {/* 4. Time of Day */}
+            <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: 16 }]}>
+              IDEAL TIME OF DAY
+            </Text>
+            <View style={styles.timeGrid}>
+              {TIME_OF_DAY_OPTIONS.map((tod) => {
+                const isTodActive = timeOfDay === tod.value;
+                return (
+                  <Pressable
+                    key={tod.value}
+                    style={[
+                      styles.timeChip,
+                      isTodActive
+                        ? [styles.timeChipActive, { backgroundColor: selectedColor }]
+                        : {
+                          backgroundColor: isDark ? colors.background : '#F8F8FE',
+                          borderColor: colors.border,
+                        },
+                    ]}
+                    onPress={() => setTimeOfDay(tod.value)}
+                  >
+                    <Ionicons
+                      name={tod.icon}
+                      size={16}
+                      color={isTodActive ? '#FFFFFF' : colors.textSecondary}
+                    />
+                    <Text
+                      style={[
+                        styles.timeChipText,
+                        { color: isTodActive ? '#FFFFFF' : colors.text },
+                      ]}
+                    >
+                      {tod.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* 5. Custom Color & Icon Picker */}
+            <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: 16 }]}>
+              ACCENT COLOR & ICON
+            </Text>
+            <View style={styles.colorRow}>
+              {CURATED_COLORS.map((col) => (
+                <Pressable
+                  key={col}
+                  style={[
+                    styles.colorCircle,
+                    { backgroundColor: col },
+                    selectedColor === col ? styles.colorCircleActive : undefined,
+                  ]}
+                  onPress={() => setSelectedColor(col)}
+                >
+                  {selectedColor === col && (
+                    <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                  )}
                 </Pressable>
               ))}
             </View>
 
-            {/* Privacy selector */}
-            <View style={[styles.privacyContainer, { backgroundColor: isDark ? colors.background : '#F8F8FE', borderColor: colors.border }]}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.iconScroll}
+            >
+              {CURATED_ICONS.map((ic) => {
+                const isIconActive = selectedIcon === ic;
+                return (
+                  <Pressable
+                    key={ic}
+                    style={[
+                      styles.iconCircle,
+                      isIconActive
+                        ? [styles.iconCircleActive, { backgroundColor: selectedColor }]
+                        : {
+                          backgroundColor: isDark ? colors.background : '#F8F8FE',
+                          borderColor: colors.border,
+                        },
+                    ]}
+                    onPress={() => setSelectedIcon(ic)}
+                  >
+                    <Ionicons
+                      name={ic}
+                      size={18}
+                      color={isIconActive ? '#FFFFFF' : colors.text}
+                    />
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+
+            {/* 6. Frequency Selector */}
+            <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: 16 }]}>
+              FREQUENCY
+            </Text>
+            <View style={styles.frequencyGrid}>
+              {FREQUENCIES.map((f) => {
+                const isFreqActive = frequency === f.value;
+                return (
+                  <Pressable
+                    key={f.value}
+                    style={[
+                      styles.frequencyChip,
+                      isFreqActive
+                        ? [styles.frequencyChipActive, { backgroundColor: selectedColor }]
+                        : {
+                          backgroundColor: isDark ? colors.background : '#F8F8FE',
+                          borderColor: colors.border,
+                        },
+                    ]}
+                    onPress={() => setFrequency(f.value)}
+                  >
+                    <Ionicons
+                      name={f.icon}
+                      size={16}
+                      color={isFreqActive ? '#FFFFFF' : colors.textSecondary}
+                    />
+                    <Text
+                      style={[
+                        styles.frequencyLabel,
+                        { color: isFreqActive ? '#FFFFFF' : colors.text },
+                      ]}
+                    >
+                      {f.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* Privacy switch */}
+            <View
+              style={[
+                styles.privacyContainer,
+                {
+                  backgroundColor: isDark ? colors.background : '#F8F8FE',
+                  borderColor: colors.border,
+                },
+              ]}
+            >
               <View>
-                <Text style={[styles.privacyTitle, { color: colors.text }]}>Public Habit</Text>
-                <Text style={[styles.privacySubtitle, { color: colors.textSecondary }]}>Visible to friends on feed</Text>
+                <Text style={[styles.privacyTitle, { color: colors.text }]}>Social Feed Visibility</Text>
+                <Text style={[styles.privacySubtitle, { color: colors.textSecondary }]}>
+                  Broadcast completed sessions to friend feed
+                </Text>
               </View>
               <Switch
                 value={isPublic}
                 onValueChange={setIsPublic}
-                trackColor={{ false: isDark ? colors.border : '#E8DEFF', true: '#6C5CE7' }}
+                trackColor={{ false: isDark ? colors.border : '#E8DEFF', true: selectedColor }}
                 thumbColor="#FFFFFF"
               />
             </View>
 
-            {/* Create button */}
+            {/* Create Button */}
             <Pressable
               style={({ pressed }) => [
                 styles.createButton,
-                pressed && styles.buttonPressed,
-                createHabit.isPending && styles.buttonDisabled,
+                { backgroundColor: selectedColor },
+                pressed ? styles.createButtonPressed : undefined,
               ]}
               onPress={handleCreate}
               disabled={createHabit.isPending}
             >
               {createHabit.isPending ? (
-                <ActivityIndicator color="#fff" size="small" />
+                <ActivityIndicator color="#FFFFFF" />
               ) : (
-                <Text style={styles.createButtonText}>Create Habit 🎉</Text>
+                <View style={styles.createButtonContent}>
+                  <Ionicons name={selectedIcon} size={20} color="#FFFFFF" />
+                  <Text style={styles.createButtonText}>Create Habit</Text>
+                </View>
               )}
             </Pressable>
           </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Discovery Blueprint Modal */}
+      <HabitDiscoveryModal
+        visible={discoveryModalVisible}
+        onClose={() => setDiscoveryModalVisible(false)}
+        onSelectPresetToCustomize={handleSelectPresetToCustomize}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
   container: {
     flex: 1,
-    backgroundColor: '#F2F0FF',
+  },
+  flex: {
+    flex: 1,
   },
   scroll: {
-    flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 50,
-    paddingBottom: 40,
+    paddingHorizontal: 20,
+    paddingTop: 56,
+    paddingBottom: 48,
   },
-
-  // Blobs
   blobTopRight: {
     position: 'absolute',
-    top: -50,
-    right: -50,
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: '#E8DEFF',
-    opacity: 0.5,
+    top: -60,
+    right: -60,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: '#FFEAA7',
+    opacity: 0.35,
   },
   blobBottomLeft: {
     position: 'absolute',
-    bottom: -30,
-    left: -30,
-    width: 130,
-    height: 130,
-    borderRadius: 65,
-    backgroundColor: '#FFE8EC',
-    opacity: 0.4,
+    bottom: -40,
+    left: -40,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+    backgroundColor: '#DFF9FB',
+    opacity: 0.45,
   },
-
-  // Back
   backButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 16,
     alignSelf: 'flex-start',
-    paddingVertical: 10,
-    paddingRight: 16,
-    marginBottom: 8,
-    gap: 4,
   },
   backText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#6C5CE7',
-  },
-
-  // Mascot
-  mascotContainer: {
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  mascotBubble: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: '#FFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#6C5CE7',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 14,
-    elevation: 5,
-    borderWidth: 3,
-    borderColor: '#F0EDFF',
-  },
-
-
-  // Title
-  titleContainer: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#2D2D3A',
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 15,
-    color: '#8B8BA0',
-    marginTop: 6,
-    fontWeight: '500',
-  },
-
-  // Card
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 22,
-    shadowColor: '#6C5CE7',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.06,
-    shadowRadius: 20,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: '#F0EDFF',
-  },
-
-  // Frequency
-  sectionLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#8B8BA0',
-    letterSpacing: 1,
-    marginBottom: 10,
     marginLeft: 4,
   },
-  typeGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 20,
-  },
-  typeChip: {
+  blueprintBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 9,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 18,
+    borderWidth: 1.5,
+  },
+  blueprintBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  blueprintBannerIcon: {
+    width: 38,
+    height: 38,
     borderRadius: 12,
-    backgroundColor: '#F8F8FE',
-    borderWidth: 2,
-    borderColor: '#EDEDF5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  blueprintBannerTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  blueprintBannerArrow: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  splitterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 18,
+    gap: 12,
+  },
+  splitterLine: {
+    flex: 1,
+    height: 1,
+  },
+  splitterText: {
+    fontSize: 13,
+    fontWeight: '600',
+    textTransform: 'lowercase',
+    letterSpacing: 0.3,
+  },
+  singleEngineCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    gap: 12,
+    marginBottom: 4,
+  },
+  card: {
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+    marginTop: 12,
+  },
+  sectionHelper: {
+    fontSize: 12,
+    fontWeight: '400',
+    marginBottom: 10,
+    marginTop: -4,
+  },
+  categoryScroll: {
+    gap: 8,
+    paddingBottom: 4,
+  },
+  categoryPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
     gap: 6,
   },
-  typeLabel: {
-    fontSize: 13,
+  categoryPillActive: {
+    borderColor: 'transparent',
+  },
+  categoryPillText: {
+    fontSize: 12,
     fontWeight: '700',
-    color: '#6B6B80',
+  },
+  subCategoryBlock: {
+    marginTop: 8,
+  },
+  subCategoryChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  subChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  subChipActive: {
+    borderColor: 'transparent',
+  },
+  subChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  archetypeGrid: {
+    gap: 8,
+  },
+  archetypeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1.5,
+  },
+  archetypeCardActive: {},
+  archetypeIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  archetypeTextWrap: {
+    flex: 1,
+  },
+  archetypeTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  archetypeDesc: {
+    fontSize: 11,
+    fontWeight: '400',
+    marginTop: 2,
+  },
+  targetRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  targetInputWrap: {
+    flex: 1,
+  },
+  targetUnitWrap: {
+    flex: 2,
+  },
+  targetInput: {
+    height: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  timeGrid: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  timeChip: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 4,
+  },
+  timeChipActive: {
+    borderColor: 'transparent',
+  },
+  timeChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  colorRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  colorCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  colorCircleActive: {
+    transform: [{ scale: 1.15 }],
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+  },
+  iconScroll: {
+    gap: 8,
+    paddingBottom: 4,
+  },
+  iconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconCircleActive: {
+    borderColor: 'transparent',
   },
   frequencyGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: 20,
+    gap: 6,
   },
   frequencyChip: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 14,
-    backgroundColor: '#F8F8FE',
-    borderWidth: 2,
-    borderColor: '#EDEDF5',
-    gap: 6,
-    flex: 1,
-    minWidth: '40%',
     justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 4,
   },
   frequencyChipActive: {
-    backgroundColor: '#6C5CE7',
-    borderColor: '#6C5CE7',
+    borderColor: 'transparent',
   },
-
   frequencyLabel: {
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: '700',
-    color: '#6B6B80',
   },
-  frequencyLabelActive: {
-    color: '#FFFFFF',
-  },
-
-  // Privacy
   privacyContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    padding: 14,
     borderRadius: 16,
-    borderWidth: 2,
-    marginBottom: 24,
+    borderWidth: 1,
+    marginTop: 18,
+    marginBottom: 18,
   },
   privacyTitle: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
   },
   privacySubtitle: {
-    fontSize: 13,
-    fontWeight: '500',
+    fontSize: 11,
+    fontWeight: '400',
     marginTop: 2,
   },
-
-  // Create button
   createButton: {
-    backgroundColor: '#6C5CE7',
+    borderRadius: 18,
     paddingVertical: 16,
-    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#6C5CE7',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 14,
-    elevation: 6,
-  },
-  buttonPressed: {
-    transform: [{ scale: 0.96 }],
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  buttonDisabled: {
-    opacity: 0.7,
+  createButtonPressed: {
+    opacity: 0.9,
+    transform: [{ scale: 0.98 }],
+  },
+  createButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   createButtonText: {
     color: '#FFFFFF',
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '800',
-    letterSpacing: 0.3,
   },
 });

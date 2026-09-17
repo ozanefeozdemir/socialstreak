@@ -3,6 +3,9 @@ package com.example.back;
 import com.example.back.dto.AuthRespond;
 import com.example.back.dto.LoginRequest;
 import com.example.back.dto.RegisterRequest;
+import com.example.back.dto.UserRespond;
+import com.example.back.mapper.UserMapper;
+import com.example.back.messaging.RabbitMQProducer;
 import com.example.back.model.RefreshToken;
 import com.example.back.model.User;
 import com.example.back.repository.RefreshTokenRepository;
@@ -25,6 +28,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -45,10 +49,17 @@ class AuthServiceTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private UserMapper userMapper;
+
+    @Mock
+    private RabbitMQProducer rabbitMQProducer;
+
     @InjectMocks
     private AuthService authService;
 
     private User testUser;
+    private UserRespond testUserRespond;
 
     @BeforeEach
     void setUp() {
@@ -57,22 +68,33 @@ class AuthServiceTest {
         testUser.setEmail("user@example.com");
         testUser.setUsername("testuser");
         testUser.setPasswordHash("hashed_pw");
+
+        testUserRespond = new UserRespond(
+                testUser.getId(),
+                testUser.getEmail(),
+                testUser.getUsername(),
+                "Test",
+                "User",
+                "UTC",
+                true
+        );
     }
 
     @Test
     void login_ShouldReturnAccessAndRefreshToken() {
         LoginRequest request = new LoginRequest("user@example.com", "password123");
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(testUser));
-        when(jwtService.generateToken("user@example.com")).thenReturn("mock-access-token");
-        when(jwtService.generateRefreshToken("user@example.com")).thenReturn("mock-refresh-token");
+        when(jwtService.generateToken(testUser.getId().toString(), "USER")).thenReturn("mock-access-token");
+        when(jwtService.generateRefreshToken(testUser.getId().toString())).thenReturn("mock-refresh-token");
         when(jwtService.getRefreshExp()).thenReturn(2592000000L);
+        when(userMapper.entityToRespond(testUser)).thenReturn(testUserRespond);
 
         AuthRespond response = authService.login(request);
 
         assertNotNull(response);
         assertEquals("mock-access-token", response.token());
         assertEquals("mock-refresh-token", response.refreshToken());
-        assertEquals("testuser", response.username());
+        assertEquals("testuser", response.user().username());
         verify(refreshTokenRepository, times(1)).save(any(RefreshToken.class));
     }
 
@@ -82,9 +104,15 @@ class AuthServiceTest {
         when(userRepository.existsByEmail("user@example.com")).thenReturn(false);
         when(userRepository.existsByUsername("testuser")).thenReturn(false);
         when(passwordEncoder.encode("pass")).thenReturn("hashed_pass");
-        when(jwtService.generateToken("user@example.com")).thenReturn("mock-access-token");
-        when(jwtService.generateRefreshToken("user@example.com")).thenReturn("mock-refresh-token");
+        doAnswer(inv -> {
+            User u = inv.getArgument(0);
+            u.setId(UUID.randomUUID());
+            return u;
+        }).when(userRepository).save(any(User.class));
+        when(jwtService.generateToken(any(), eq("USER"))).thenReturn("mock-access-token");
+        when(jwtService.generateRefreshToken(any())).thenReturn("mock-refresh-token");
         when(jwtService.getRefreshExp()).thenReturn(2592000000L);
+        when(userMapper.entityToRespond(any(User.class))).thenReturn(testUserRespond);
 
         AuthRespond response = authService.register(request);
 
@@ -103,18 +131,19 @@ class AuthServiceTest {
         storedToken.setUser(testUser);
         storedToken.setExpiresAt(Instant.now().plusSeconds(3600));
 
-        when(jwtService.extractRefreshTokenUsername(oldRefreshTokenString)).thenReturn("user@example.com");
+        when(jwtService.extractRefreshTokenUserId(oldRefreshTokenString)).thenReturn(testUser.getId().toString());
         when(refreshTokenRepository.findByToken(oldRefreshTokenString)).thenReturn(Optional.of(storedToken));
-        when(jwtService.generateToken("user@example.com")).thenReturn("new-access-token");
-        when(jwtService.generateRefreshToken("user@example.com")).thenReturn("new-refresh-token");
+        when(jwtService.generateToken(testUser.getId().toString(), "USER")).thenReturn("new-access-token");
+        when(jwtService.generateRefreshToken(testUser.getId().toString())).thenReturn("new-refresh-token");
         when(jwtService.getRefreshExp()).thenReturn(2592000000L);
+        when(userMapper.entityToRespond(testUser)).thenReturn(testUserRespond);
 
         AuthRespond response = authService.refresh(oldRefreshTokenString);
 
         assertNotNull(response);
         assertEquals("new-access-token", response.token());
         assertEquals("new-refresh-token", response.refreshToken());
-        assertEquals("testuser", response.username());
+        assertEquals("testuser", response.user().username());
         // Verify old token was rotated out
         verify(refreshTokenRepository, times(1)).delete(storedToken);
         // Verify new token was saved
@@ -123,7 +152,7 @@ class AuthServiceTest {
 
     @Test
     void refresh_WithNonExistentToken_ShouldThrowBadCredentials() {
-        when(jwtService.extractRefreshTokenUsername("unknown-token")).thenReturn("user@example.com");
+        when(jwtService.extractRefreshTokenUserId("unknown-token")).thenReturn(testUser.getId().toString());
         when(refreshTokenRepository.findByToken("unknown-token")).thenReturn(Optional.empty());
 
         assertThrows(BadCredentialsException.class, () -> authService.refresh("unknown-token"));
@@ -137,7 +166,7 @@ class AuthServiceTest {
         expiredToken.setUser(testUser);
         expiredToken.setExpiresAt(Instant.now().minusSeconds(10));
 
-        when(jwtService.extractRefreshTokenUsername(expiredTokenString)).thenReturn("user@example.com");
+        when(jwtService.extractRefreshTokenUserId(expiredTokenString)).thenReturn(testUser.getId().toString());
         when(refreshTokenRepository.findByToken(expiredTokenString)).thenReturn(Optional.of(expiredToken));
 
         assertThrows(BadCredentialsException.class, () -> authService.refresh(expiredTokenString));
