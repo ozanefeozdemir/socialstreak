@@ -2,15 +2,16 @@ import React from 'react';
 import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
-import type { PublicUserRespond } from '@/types';
+import type { PublicUserRespond, UserSearchDto } from '@/types';
 
 export type UserRelationStatus = 'none' | 'sent' | 'received' | 'friend';
 
 interface UserSearchResultProps {
-  user: PublicUserRespond;
+  user: PublicUserRespond | UserSearchDto;
   status: UserRelationStatus;
   sentRequestId?: string;
   receivedRequestId?: string;
+  mutualFriendsCount?: number;
   onSendRequest?: (userId: string) => void;
   onCancelRequest?: (requestId: string) => void;
   onAcceptRequest?: (requestId: string) => void;
@@ -23,6 +24,7 @@ export function UserSearchResult({
   status,
   sentRequestId,
   receivedRequestId,
+  mutualFriendsCount,
   onSendRequest,
   onCancelRequest,
   onAcceptRequest,
@@ -32,6 +34,8 @@ export function UserSearchResult({
   const { colors, isDark } = useTheme();
   const initials = `${(user.name?.[0] || '').toUpperCase()}${(user.surname?.[0] || '').toUpperCase()}` || (user.username?.[0] || '?').toUpperCase();
   const fullName = [user.name, user.surname].filter(Boolean).join(' ') || user.username;
+  const effectiveMutualFriends =
+    mutualFriendsCount ?? ('mutualFriendsCount' in user ? (user.mutualFriendsCount ?? 0) : 0);
 
   return (
     <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: isDark ? '#000000' : '#6C5CE7' }]}>
@@ -46,6 +50,14 @@ export function UserSearchResult({
         <Text style={[styles.username, { color: colors.textSecondary }]} numberOfLines={1}>
           @{user.username}
         </Text>
+        {effectiveMutualFriends > 0 ? (
+          <View style={styles.mutualRow}>
+            <Ionicons name="people" size={11} color={isDark ? '#A29BFE' : '#6C5CE7'} />
+            <Text style={[styles.mutualText, { color: isDark ? '#A29BFE' : '#6C5CE7' }]}>
+              {effectiveMutualFriends} mutual {effectiveMutualFriends === 1 ? 'friend' : 'friends'}
+            </Text>
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.actionContainer}>
@@ -157,6 +169,16 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#8B8BA0',
     marginTop: 2,
+  },
+  mutualRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 3,
+  },
+  mutualText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   actionContainer: {
     flexDirection: 'row',

@@ -33,8 +33,11 @@ public class SearchService {
         Query notSearcherFilter = QueryBuilders.bool(b -> b.mustNot(mn -> mn.term(t -> t.field("id").value(searcherId))));
         
         // 2. Should Context (Scoring)
-        Query exactUsernameMatch = QueryBuilders.term(t -> t.field("username").value(queryText).boost(10.0f));
+        String normalizedQuery = queryText != null ? queryText.trim().toLowerCase() : "";
+        Query exactUsernameMatch = QueryBuilders.term(t -> t.field("username").value(normalizedQuery).boost(10.0f));
         Query fuzzyFullNameMatch = QueryBuilders.match(m -> m.field("fullName").query(queryText).fuzziness("AUTO").boost(2.0f));
+        Query prefixFullNameMatch = QueryBuilders.matchPhrasePrefix(m -> m.field("fullName").query(queryText).boost(6.0f));
+        Query prefixFullNameQuery = QueryBuilders.prefix(p -> p.field("fullName").value(normalizedQuery).boost(4.0f));
         Query searchAsYouTypeUsername = QueryBuilders.multiMatch(m -> m
                 .query(queryText)
                 .fields("username", "username._2gram", "username._3gram")
@@ -48,6 +51,8 @@ public class SearchService {
                 .filter(notSearcherFilter)
                 .should(exactUsernameMatch)
                 .should(fuzzyFullNameMatch)
+                .should(prefixFullNameMatch)
+                .should(prefixFullNameQuery)
                 .should(searchAsYouTypeUsername)
                 .minimumShouldMatch("1")
         );

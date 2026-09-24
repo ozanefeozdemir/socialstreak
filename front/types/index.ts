@@ -111,6 +111,14 @@ export interface PublicUserRespond {
   timezone: string;
 }
 
+export interface UserSearchDto {
+  id: string;
+  username: string;
+  name: string;
+  surname: string;
+  mutualFriendsCount: number;
+}
+
 export interface UpdateUserRequest {
   email: string;
   username: string;

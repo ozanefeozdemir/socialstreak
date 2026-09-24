@@ -1,5 +1,5 @@
 import apiClient from '../client';
-import type { UserRespond, PublicUserRespond, UpdateUserRequest, ChangePasswordRequest } from '@/types';
+import type { UserRespond, PublicUserRespond, UserSearchDto, UpdateUserRequest, ChangePasswordRequest } from '@/types';
 
 export const usersApi = {
   getMe: async (): Promise<UserRespond> => {
@@ -9,6 +9,13 @@ export const usersApi = {
 
   getAll: async (): Promise<PublicUserRespond[]> => {
     const response = await apiClient.get<PublicUserRespond[]>('/user');
+    return response.data;
+  },
+
+  search: async (query: string, page = 0, size = 20): Promise<UserSearchDto[]> => {
+    const response = await apiClient.get<UserSearchDto[]>('/user/search', {
+      params: { q: query, page, size },
+    });
     return response.data;
   },
 

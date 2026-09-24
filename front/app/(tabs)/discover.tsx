@@ -14,7 +14,7 @@ import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { useUsers } from '@/hooks/useUsers';
+import { useSearchUsers } from '@/hooks/useUsers';
 import {
   useSentFriendRequests,
   useReceivedFriendRequests,
@@ -37,11 +37,17 @@ export default function DiscoverScreen() {
 
   // Queries
   const {
-    data: users = [],
-    isLoading: isUsersLoading,
-    refetch: refetchUsers,
-    isRefetching: isRefetchingUsers,
-  } = useUsers();
+    data: searchResults = [],
+    isLoading: isSearchLoading,
+    isFetching: isSearchFetching,
+    error: searchError,
+    refetch: refetchSearch,
+    isRefetching: isRefetchingSearch,
+    isDebouncing,
+    isSearchActive,
+  } = useSearchUsers(searchQuery);
+
+  const isRateLimited = (searchError as any)?.response?.status === 429;
 
   const {
     data: sentRequests = [],
@@ -70,35 +76,33 @@ export default function DiscoverScreen() {
   const removeRequestMutation = useRemoveFriendRequest();
 
   const isRefreshing =
-    isRefetchingUsers || isRefetchingSent || isRefetchingReceived || isRefetchingFriends;
+    (isSearchActive ? isRefetchingSearch : false) ||
+    isRefetchingSent ||
+    isRefetchingReceived ||
+    isRefetchingFriends;
 
   const onRefresh = () => {
-    refetchUsers();
+    if (isSearchActive) {
+      refetchSearch();
+    }
     refetchSent();
     refetchReceived();
     refetchFriends();
   };
 
-  // Filtered users for search
-  const filteredUsers = useMemo(() => {
-    const trimmed = searchQuery.trim().toLowerCase();
-    if (!trimmed) return [];
-
-    return users.filter((u) => {
-      // Exclude self
+  // Active search results (Elasticsearch handles fuzzy, typo-tolerance & ranking; we safely exclude self)
+  const searchUsers = useMemo(() => {
+    if (!isSearchActive) return [];
+    return searchResults.filter((u) => {
       if (
         currentUser &&
         (u.id === currentUser.id || u.username.toLowerCase() === currentUser.username.toLowerCase())
       ) {
         return false;
       }
-      const matchesUsername = u.username.toLowerCase().includes(trimmed);
-      const matchesName = u.name?.toLowerCase().includes(trimmed);
-      const matchesSurname = u.surname?.toLowerCase().includes(trimmed);
-      const matchesFull = `${u.name || ''} ${u.surname || ''}`.toLowerCase().includes(trimmed);
-      return matchesUsername || matchesName || matchesSurname || matchesFull;
+      return true;
     });
-  }, [users, searchQuery, currentUser]);
+  }, [searchResults, currentUser, isSearchActive]);
 
   // Fast lookup maps for user statuses
   const friendUserIds = useMemo(() => new Set(friends.map((f) => f.friend.id)), [friends]);
@@ -227,6 +231,9 @@ export default function DiscoverScreen() {
                 autoCorrect={false}
                 returnKeyType="search"
               />
+              {(isDebouncing || (isSearchFetching && !isRefreshing)) ? (
+                <ActivityIndicator size="small" color="#6C5CE7" style={{ marginRight: 2 }} />
+              ) : null}
               {searchQuery.length > 0 ? (
                 <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
                   <Ionicons name="close-circle" size={18} color="#B8B8D0" />
@@ -243,9 +250,17 @@ export default function DiscoverScreen() {
               <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor="#6C5CE7" />
             }
           >
-            {isUsersLoading ? (
+            {isSearchLoading && searchUsers.length === 0 ? (
               <View style={styles.centerContainer}>
                 <ActivityIndicator size="large" color="#6C5CE7" />
+              </View>
+            ) : isRateLimited ? (
+              <View style={styles.centerContainer}>
+                <Ionicons name="speedometer-outline" size={44} color="#E17055" />
+                <Text style={styles.noResultsTitle}>Search Limit Reached</Text>
+                <Text style={styles.noResultsSubtitle}>
+                  You&apos;ve reached the search rate limit (20 req/min). Please wait a moment and try again.
+                </Text>
               </View>
             ) : searchQuery.trim().length === 0 ? (
               // Empty search initial view
@@ -274,7 +289,7 @@ export default function DiscoverScreen() {
                   </Text>
                 </View>
               </View>
-            ) : filteredUsers.length === 0 ? (
+            ) : searchUsers.length === 0 ? (
               // No matching search results
               <View style={styles.centerContainer}>
                 <Ionicons name="search-outline" size={44} color="#C0C0D8" />
@@ -285,7 +300,7 @@ export default function DiscoverScreen() {
               </View>
             ) : (
               // Search Results List
-              filteredUsers.map((user) => {
+              searchUsers.map((user) => {
                 let status: UserRelationStatus = 'none';
                 let sentId: string | undefined;
                 let receivedId: string | undefined;
@@ -307,6 +322,7 @@ export default function DiscoverScreen() {
                     status={status}
                     sentRequestId={sentId}
                     receivedRequestId={receivedId}
+                    mutualFriendsCount={user.mutualFriendsCount}
                     onSendRequest={handleSendRequest}
                     onCancelRequest={handleDeclineOrCancelRequest}
                     onAcceptRequest={handleAcceptRequest}

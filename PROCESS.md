@@ -390,10 +390,35 @@
 
 ---
 
+## Session 12 — 2026-09-23 (Elasticsearch User Discovery Frontend Integration)
+
+### What was done
+- ✅ **Frontend Types & API Client**:
+  - Added `UserSearchDto` in `front/types/index.ts` matching backend DTO (`id`, `username`, `name`, `surname`, `mutualFriendsCount`).
+  - Added `usersApi.search(query, page, size)` to `front/api/endpoints/users.ts` executing `GET /api/user/search?q={query}`.
+- ✅ **Debounced Search Query Hook**:
+  - Built `useSearchUsers(query, debounceMs = 300)` in `front/hooks/useUsers.ts`.
+  - Added 300ms keystroke debounce, immediate search for any typed query (min 1 character), React Query caching (`staleTime: 30s`), and smooth `placeholderData` keeping results stable while typing.
+- ✅ **Mutual Friends Indicator**:
+  - Enhanced `front/components/friend/UserSearchResult.tsx` to accept both `PublicUserRespond` and `UserSearchDto`.
+  - Added themed badge rendering `"{N} mutual friends"` beneath `@username` for users with shared social connections.
+- ✅ **Discover Screen Full Integration (`front/app/(tabs)/discover.tsx`)**:
+  - Replaced bulk table fetch and client-side string filter with Elasticsearch search results.
+  - Added live debounce/fetching activity indicator embedded inside the search input.
+  - Handled 429 Too Many Requests rate limit state gracefully.
+  - Retained friendship and request mutation capabilities on search result items.
+- ✅ **Backend Robustness (UUID / String IDs & Full Name Prefix Search)**:
+  - Fixed `IllegalArgumentException: Invalid UUID string` in `UserSearchController.java`: relaxed `UserSearchDto.id` to `String` so Elasticsearch documents with non-standard or mock IDs (e.g. `test-user-1`) do not crash the endpoint.
+  - Fixed partial name matching in `SearchService.java`: added `match_phrase_prefix` and `prefix` queries to `fullName` so keystroke prefixes (e.g., typing "tes", "mic", "oz") match names starting with those letters (e.g., "Test3 Test3", "Ozan Efe") instead of requiring exact token length matching via fuzzy edit distances.
+- ✅ **Verification**:
+  - Frontend type check: `npx tsc --noEmit` passed with 0 errors.
+  - Backend compile: `./gradlew compileJava` passed with 0 errors.
+
+---
 
 ## Backlog / Future Work
 - [x] BACKEND GET /api/users DATA LEAKAGE: Resolved via dedicated `GET /api/user/search` endpoint returning minimal `UserSearchDto` + `PublicUserRespond`.
-- [ ] Connect Discover Page search input (`front/app/(tabs)/discover.tsx` / `hooks/useUsers.ts`) to `GET /api/user/search?q={query}` instead of `GET /api/user`.
+- [x] Connect Discover Page search input (`front/app/(tabs)/discover.tsx` / `hooks/useUsers.ts`) to `GET /api/user/search?q={query}` instead of `GET /api/user`.
 - [ ] Add one-time bulk sync runner or admin endpoint to index pre-existing PostgreSQL users into Elasticsearch.
 - [ ] Add privacy toggle switch in Settings page (`app/settings/privacy.tsx` / `edit-profile.tsx`) to update `privacySearchable`.
 - [x] Most common / trending habits list in Discover tab (habit templates/suggestions): Implemented 38-preset Habit Blueprint Library with deep taxonomy (10 categories × 5 subcategories) and 1-tap/2-tap adoption.

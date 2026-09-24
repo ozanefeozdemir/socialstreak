@@ -47,12 +47,12 @@ public class UserSearchController {
                 // Let's parse it roughly or we should have stored them.
                 // Assuming space separates name and surname.
                 String name = doc.getFullName() != null && doc.getFullName().contains(" ") 
-                        ? doc.getFullName().substring(0, doc.getFullName().indexOf(" ")) : doc.getFullName();
+                        ? doc.getFullName().substring(0, doc.getFullName().indexOf(" ")) : (doc.getFullName() != null ? doc.getFullName() : "");
                 String surname = doc.getFullName() != null && doc.getFullName().contains(" ") 
                         ? doc.getFullName().substring(doc.getFullName().indexOf(" ") + 1) : "";
 
                 return new UserSearchDto(
-                        UUID.fromString(doc.getId()),
+                        doc.getId(),
                         doc.getUsername(),
                         name,
                         surname,
