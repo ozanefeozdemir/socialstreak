@@ -410,18 +410,47 @@
 - ✅ **Backend Robustness (UUID / String IDs & Full Name Prefix Search)**:
   - Fixed `IllegalArgumentException: Invalid UUID string` in `UserSearchController.java`: relaxed `UserSearchDto.id` to `String` so Elasticsearch documents with non-standard or mock IDs (e.g. `test-user-1`) do not crash the endpoint.
   - Fixed partial name matching in `SearchService.java`: added `match_phrase_prefix` and `prefix` queries to `fullName` so keystroke prefixes (e.g., typing "tes", "mic", "oz") match names starting with those letters (e.g., "Test3 Test3", "Ozan Efe") instead of requiring exact token length matching via fuzzy edit distances.
+- ✅ **Dynamic Mutual Friends Calculation**:
+  - Implemented `FriendshipRepository.countMutualFriends(searcherId, candidateIds)` using high-performance indexed join query between friendships.
+  - Built `FriendshipService.getMutualFriendsCountMap` and integrated with `UserSearchController` to compute real-time pairwise mutual friends between the authenticated searcher and candidate users, replacing the static/zero count in Elasticsearch.
+  - Added unit test `FriendshipServiceTest` with 100% pass rate.
 - ✅ **Verification**:
   - Frontend type check: `npx tsc --noEmit` passed with 0 errors.
   - Backend compile: `./gradlew compileJava` passed with 0 errors.
+  - Backend tests: `./gradlew test --tests "*ServiceTest"` and `FriendshipServiceTest` passed with 0 errors.
 
 ---
+
+## Session 13 — 2026-09-24 (Discover Screen Community Trending Habits Feed)
+
+### What was done
+- ✅ **Community Trending Habits Backend (`GET /api/habit/trending`)**:
+  - Created `TrendingHabitRespond` DTO: `{ id, name, habitType, category, icon, color, participantCount, activeStreakCount, defaultFrequency, description, config }`.
+  - Added queries to `HabitRepository` (`countPublicHabitParticipants`) and `CheckInRepository` (`countActiveStreaksSinceDate`) to dynamically aggregate real user counts and active streak numbers from PostgreSQL.
+  - Built `HabitService.getTrendingHabits()`: Combines real database statistics with platform community presets (featuring user-specified League of Legends with 1,000 active participants and 100 active streaks, along with Morning Workout, Daily Reading, 10k Steps, Hydration, Coding/LeetCode, Meditation, and Duolingo).
+  - Exposed `GET /api/habit/trending` in `HabitController.java`.
+- ✅ **Frontend Community Trending Habits Feed**:
+  - Created `front/components/habit/TrendingHabitCard.tsx`:
+    - Clean rank badges (`#1`, `#2`, `#3` with medal/gold accents).
+    - Themed icon squircle, habit title, category chip, and description.
+    - Social Streak aggregated stats: `👥 {N} tracking now` and `🔥 {N} active streaks`.
+    - One-tap `+ Join` button with instant loading feedback or `Tracking ✓` badge if the user already has this habit.
+  - Redesigned `front/app/(tabs)/discover.tsx` empty-search screen:
+    - Compact friend search helper banner.
+    - Category filter chips styled with custom vector Ionicons (e.g. `game-controller`, `barbell`, `water`, `book`, `flash`, `leaf`, `sparkles`) inside tinted micro-squircles instead of raw emojis.
+    - Cleaned up Trending Habits header by removing the subtitle and giving priority to the title and live community badge.
+    - Ranked feed of community trending habits.
+    - One-tap join handler integrated with `useCreateHabit()` and feedback alerts.
+- ✅ **Verification**:
+  - Frontend TypeScript verification: `npx tsc --noEmit` passed with 0 errors.
+  - Backend compilation: `./gradlew compileJava` passed with 0 errors.
 
 ## Backlog / Future Work
 - [x] BACKEND GET /api/users DATA LEAKAGE: Resolved via dedicated `GET /api/user/search` endpoint returning minimal `UserSearchDto` + `PublicUserRespond`.
 - [x] Connect Discover Page search input (`front/app/(tabs)/discover.tsx` / `hooks/useUsers.ts`) to `GET /api/user/search?q={query}` instead of `GET /api/user`.
-- [ ] Add one-time bulk sync runner or admin endpoint to index pre-existing PostgreSQL users into Elasticsearch.
-- [ ] Add privacy toggle switch in Settings page (`app/settings/privacy.tsx` / `edit-profile.tsx`) to update `privacySearchable`.
-- [x] Most common / trending habits list in Discover tab (habit templates/suggestions): Implemented 38-preset Habit Blueprint Library with deep taxonomy (10 categories × 5 subcategories) and 1-tap/2-tap adoption.
+- [x] Add one-time bulk sync runner or admin endpoint to index pre-existing PostgreSQL users into Elasticsearch: Built `UserSearchSyncService` with `ApplicationReadyEvent` auto-sync.
+- [x] Add privacy toggle switch in Settings page (`app/settings/privacy.tsx` / `edit-profile.tsx`) to update `privacySearchable`: Integrated Switch in `edit-profile.tsx` with `usersApi.update`.
+- [x] Most common / trending habits list in Discover tab (habit templates/suggestions): Implemented Community Trending Habits feed in Discover tab with real aggregated & baseline social metrics (e.g., LoL: 1,000 active tracking, 100 on streak), category filters, 1-tap join button, and direct backend endpoint `GET /api/habit/trending`.
 - [x] Add pagination, searchbar and filtering to habits list view: Added instant keyword search and category/time-of-day filters in habits dashboard and discovery modal.
 - [ ] Add subtle timer (3 Hours left) to habit cards in habits list view to remind user check in and colorize the timer green to red according to remaining time. 
 - [x] Public/private habit visibility toggle (backend + frontend)

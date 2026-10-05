@@ -16,6 +16,16 @@ export function useHabits() {
   });
 }
 
+export function useTrendingHabits() {
+  const { token } = useAuth();
+  return useQuery({
+    queryKey: ['trendingHabits', token],
+    queryFn: habitsApi.getTrending,
+    enabled: !!token,
+    staleTime: 1000 * 60 * 5, // 5 minutes fresh
+  });
+}
+
 export function useHabit(id: string) {
   const { token } = useAuth();
   return useQuery({

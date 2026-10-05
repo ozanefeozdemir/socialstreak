@@ -4,6 +4,7 @@ import com.example.back.dto.UserSearchDto;
 import com.example.back.search.model.UserDocument;
 import com.example.back.search.service.SearchService;
 import com.example.back.security.UserPrincipal;
+import com.example.back.service.FriendshipService;
 import com.example.back.service.RateLimiterService;
 import io.github.bucket4j.Bucket;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +14,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.Collections;
@@ -24,6 +26,7 @@ public class UserSearchController {
 
     private final SearchService searchService;
     private final RateLimiterService rateLimiterService;
+    private final FriendshipService friendshipService;
 
     @GetMapping
     public ResponseEntity<List<UserSearchDto>> searchUsers(
@@ -40,23 +43,40 @@ public class UserSearchController {
 
             List<UserDocument> results = searchService.searchUsers(query, principal.getId().toString(), blockedUsers, page, size);
 
+            List<UUID> validCandidateUuids = results.stream()
+                    .map(UserDocument::getId)
+                    .filter(id -> {
+                        try {
+                            UUID.fromString(id);
+                            return true;
+                        } catch (Exception e) {
+                            return false;
+                        }
+                    })
+                    .map(UUID::fromString)
+                    .collect(Collectors.toList());
+
+            Map<UUID, Integer> mutualFriendsMap = friendshipService.getMutualFriendsCountMap(principal.getId(), validCandidateUuids);
+
             List<UserSearchDto> dtoList = results.stream().map(doc -> {
-                // Split fullName back to name and surname if needed, or adjust DTO
-                // For simplicity, we just use the original fields which we stored.
-                // Oh wait, we only stored fullName in UserDocument? We should also store name/surname or just return fullName.
-                // Let's parse it roughly or we should have stored them.
-                // Assuming space separates name and surname.
                 String name = doc.getFullName() != null && doc.getFullName().contains(" ") 
                         ? doc.getFullName().substring(0, doc.getFullName().indexOf(" ")) : (doc.getFullName() != null ? doc.getFullName() : "");
                 String surname = doc.getFullName() != null && doc.getFullName().contains(" ") 
                         ? doc.getFullName().substring(doc.getFullName().indexOf(" ") + 1) : "";
+
+                int mutualCount = 0;
+                try {
+                    UUID userUuid = UUID.fromString(doc.getId());
+                    mutualCount = mutualFriendsMap.getOrDefault(userUuid, 0);
+                } catch (Exception ignored) {
+                }
 
                 return new UserSearchDto(
                         doc.getId(),
                         doc.getUsername(),
                         name,
                         surname,
-                        doc.getMutualFriendsCount()
+                        mutualCount
                 );
             }).collect(Collectors.toList());
 

@@ -1,9 +1,14 @@
 import apiClient from '../client';
-import type { HabitRequest, HabitRespond } from '@/types';
+import type { HabitRequest, HabitRespond, TrendingHabitRespond } from '@/types';
 
 export const habitsApi = {
   getAll: async (): Promise<HabitRespond[]> => {
     const response = await apiClient.get<HabitRespond[]>('/habit');
+    return response.data;
+  },
+
+  getTrending: async (): Promise<TrendingHabitRespond[]> => {
+    const response = await apiClient.get<TrendingHabitRespond[]>('/habit/trending');
     return response.data;
   },
 

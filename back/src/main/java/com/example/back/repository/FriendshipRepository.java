@@ -22,4 +22,14 @@ public interface FriendshipRepository extends JpaRepository<Friendship, UUID> {
     @Modifying
     @Query("DELETE FROM Friendship f WHERE (f.user.id = :user1 AND f.friend.id = :user2) OR (f.user.id = :user2 AND f.friend.id = :user1)")
     void deleteFriendshipBetweenUsers(@Param("user1") UUID user1, @Param("user2") UUID user2);
+
+    @Query("""
+        SELECT f2.user.id, COUNT(f2.friend.id)
+        FROM Friendship f1, Friendship f2
+        WHERE f1.user.id = :searcherId
+          AND f2.user.id IN :candidateIds
+          AND f1.friend.id = f2.friend.id
+        GROUP BY f2.user.id
+    """)
+    List<Object[]> countMutualFriends(@Param("searcherId") UUID searcherId, @Param("candidateIds") List<UUID> candidateIds);
 }

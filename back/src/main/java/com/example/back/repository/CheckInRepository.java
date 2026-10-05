@@ -18,4 +18,10 @@ public interface CheckInRepository extends JpaRepository<CheckIn, UUID> {
 
     @Query("SELECT c FROM CheckIn c JOIN FETCH c.habit h JOIN FETCH h.user u WHERE h.user.id IN :userIds AND h.archived = false AND h.isPublic = true ORDER BY c.createdAt DESC")
     List<CheckIn> findFeedCheckInsByUserIds(@Param("userIds") List<UUID> userIds);
+
+    @Query("SELECT LOWER(h.name), COUNT(DISTINCT h.user.id) " +
+           "FROM CheckIn c JOIN c.habit h " +
+           "WHERE h.isPublic = true AND h.archived = false AND c.checkInDate >= :sinceDate " +
+           "GROUP BY LOWER(h.name)")
+    List<Object[]> countActiveStreaksSinceDate(@Param("sinceDate") LocalDate sinceDate);
 }

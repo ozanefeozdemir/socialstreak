@@ -11,6 +11,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Collections;
 import java.util.UUID;
 
 @Service
@@ -35,5 +38,20 @@ public class FriendshipService {
         if(friendshipRepository.existsByUserIdAndFriendId(userId,friendId)){
             friendshipRepository.deleteFriendshipBetweenUsers(userId,friendId);
         }else throw new ResourceNotFoundException("Böyle bir arkadaşlık yok.");
+    }
+
+    @Transactional(readOnly = true)
+    public Map<UUID, Integer> getMutualFriendsCountMap(UUID searcherId, List<UUID> candidateIds) {
+        if (candidateIds == null || candidateIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Object[]> rows = friendshipRepository.countMutualFriends(searcherId, candidateIds);
+        Map<UUID, Integer> countMap = new HashMap<>();
+        for (Object[] row : rows) {
+            UUID userId = (UUID) row[0];
+            Number count = (Number) row[1];
+            countMap.put(userId, count != null ? count.intValue() : 0);
+        }
+        return countMap;
     }
 }

@@ -101,6 +101,7 @@ export interface UserRespond {
   name: string;
   surname: string;
   timezone: string;
+  privacySearchable?: boolean;
 }
 
 export interface PublicUserRespond {
@@ -123,6 +124,7 @@ export interface UpdateUserRequest {
   email: string;
   username: string;
   timezone: string;
+  privacySearchable?: boolean;
 }
 
 export interface ChangePasswordRequest {
@@ -148,6 +150,20 @@ export interface HabitRespond {
   archived: boolean;
   isPublic: boolean;
   createdAt: string; // ISO 8601 Instant
+}
+
+export interface TrendingHabitRespond {
+  id: string;
+  name: string;
+  habitType: HabitType;
+  category: string;
+  icon: string;
+  color: string;
+  participantCount: number;
+  activeStreakCount: number;
+  defaultFrequency: FrequencyType;
+  description?: string;
+  config?: HabitConfig;
 }
 
 // ── Habit Session ─────────────────────────────────

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, Alert, Switch } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -14,6 +14,7 @@ export default function EditProfileScreen() {
   const [username, setUsername] = useState(user?.username || '');
   const [email, setEmail] = useState(user?.email || '');
   const [timezone, setTimezone] = useState(user?.timezone || '');
+  const [privacySearchable, setPrivacySearchable] = useState(user?.privacySearchable ?? true);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -23,9 +24,9 @@ export default function EditProfileScreen() {
     setIsLoading(true);
 
     try {
-      await usersApi.update(user.id, { username, email, timezone });
+      await usersApi.update(user.id, { username, email, timezone, privacySearchable });
       // Update local context
-      setUser({ ...user, username, email, timezone });
+      setUser({ ...user, username, email, timezone, privacySearchable });
       Alert.alert('Success', 'Profile updated successfully.');
       router.back();
     } catch (e: any) {
@@ -59,6 +60,22 @@ export default function EditProfileScreen() {
           onChangeText={setTimezone}
           placeholder="e.g. UTC, Europe/Istanbul"
         />
+
+        {/* Discovery Visibility Toggle */}
+        <View style={[styles.switchRow, { borderColor: colors.border }]}>
+          <View style={styles.switchTextContainer}>
+            <Text style={[styles.switchLabel, { color: colors.text }]}>Appear in Discovery</Text>
+            <Text style={[styles.switchDesc, { color: colors.textSecondary }]}>
+              Allow other users to find you via username or name search
+            </Text>
+          </View>
+          <Switch
+            value={privacySearchable}
+            onValueChange={setPrivacySearchable}
+            trackColor={{ false: '#767577', true: colors.primary }}
+            thumbColor="#FFFFFF"
+          />
+        </View>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
@@ -104,5 +121,25 @@ const styles = StyleSheet.create({
     color: '#E74C3C',
     fontSize: 14,
     marginBottom: 8,
-  }
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    gap: 12,
+  },
+  switchTextContainer: {
+    flex: 1,
+  },
+  switchLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  switchDesc: {
+    fontSize: 12,
+    marginTop: 2,
+    lineHeight: 16,
+  },
 });

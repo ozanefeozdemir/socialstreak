@@ -2,6 +2,7 @@ package com.example.back.controller;
 
 import com.example.back.dto.HabitRequest;
 import com.example.back.dto.HabitRespond;
+import com.example.back.dto.TrendingHabitRespond;
 import com.example.back.security.UserPrincipal;
 import com.example.back.service.HabitService;
 import jakarta.validation.Valid;
@@ -25,6 +26,11 @@ public class HabitController {
     public ResponseEntity<List<HabitRespond>> getHabitByUserId(@AuthenticationPrincipal UserPrincipal userPrincipal){
         List<HabitRespond> habits = habitService.findAllByUserId(userPrincipal.getId());
         return ResponseEntity.ok(habits);
+    }
+
+    @GetMapping("/trending")
+    public ResponseEntity<List<TrendingHabitRespond>> getTrendingHabits() {
+        return ResponseEntity.ok(habitService.getTrendingHabits());
     }
 
     @GetMapping("/{id}")

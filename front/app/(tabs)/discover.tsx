@@ -15,22 +15,58 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSearchUsers } from '@/hooks/useUsers';
-import {
-  useSentFriendRequests,
+import { useSentFriendRequests,
   useReceivedFriendRequests,
   useSendFriendRequest,
   useAcceptFriendRequest,
   useRemoveFriendRequest,
 } from '@/hooks/useFriendRequests';
 import { useFriends } from '@/hooks/useFriends';
+import { useTrendingHabits, useHabits, useCreateHabit } from '@/hooks/useHabits';
 import { UserSearchResult, type UserRelationStatus } from '@/components/friend/UserSearchResult';
 import { FriendRequestCard } from '@/components/friend/FriendRequestCard';
+import { TrendingHabitCard } from '@/components/habit/TrendingHabitCard';
+import { HabitDiscoveryModal } from '@/components/habit/HabitDiscoveryModal';
+import { useRouter } from 'expo-router';
+import type { TrendingHabitRespond } from '@/types';
 
 type TabType = 'find' | 'requests';
+
+type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
+
+interface CategoryConfig {
+  label: string;
+  icon: IoniconsName;
+  color: string;
+}
+
+const CATEGORY_META: Record<string, CategoryConfig> = {
+  ALL: { label: 'All Habits', icon: 'sparkles', color: '#6C5CE7' },
+  Gaming: { label: 'Gaming', icon: 'game-controller', color: '#7052FF' },
+  Fitness: { label: 'Fitness', icon: 'barbell', color: '#FF7675' },
+  Health: { label: 'Health', icon: 'water', color: '#00CEC9' },
+  Learning: { label: 'Learning', icon: 'book', color: '#0984E3' },
+  Productivity: { label: 'Productivity', icon: 'flash', color: '#FDCB6E' },
+  Mindfulness: { label: 'Mindfulness', icon: 'leaf', color: '#00B894' },
+};
+
+function getCategoryMeta(cat: string): CategoryConfig {
+  return (
+    CATEGORY_META[cat] || {
+      label: cat,
+      icon: 'shapes-outline',
+      color: '#6C5CE7',
+    }
+  );
+}
 
 export default function DiscoverScreen() {
   const [activeTab, setActiveTab] = useState<TabType>('find');
   const [searchQuery, setSearchQuery] = useState('');
+  const [discoveryModalVisible, setDiscoveryModalVisible] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+  const [joiningHabitId, setJoiningHabitId] = useState<string | null>(null);
+  const router = useRouter();
 
   const { user: currentUser } = useAuth();
   const { colors, isDark } = useTheme();
@@ -48,6 +84,19 @@ export default function DiscoverScreen() {
   } = useSearchUsers(searchQuery);
 
   const isRateLimited = (searchError as any)?.response?.status === 429;
+
+  const {
+    data: trendingHabits = [],
+    isLoading: isTrendingLoading,
+    refetch: refetchTrending,
+    isRefetching: isRefetchingTrending,
+  } = useTrendingHabits();
+
+  const {
+    data: myHabits = [],
+    refetch: refetchMyHabits,
+    isRefetching: isRefetchingMyHabits,
+  } = useHabits();
 
   const {
     data: sentRequests = [],
@@ -74,9 +123,12 @@ export default function DiscoverScreen() {
   const sendRequestMutation = useSendFriendRequest();
   const acceptRequestMutation = useAcceptFriendRequest();
   const removeRequestMutation = useRemoveFriendRequest();
+  const createHabitMutation = useCreateHabit();
 
   const isRefreshing =
     (isSearchActive ? isRefetchingSearch : false) ||
+    isRefetchingTrending ||
+    isRefetchingMyHabits ||
     isRefetchingSent ||
     isRefetchingReceived ||
     isRefetchingFriends;
@@ -85,6 +137,8 @@ export default function DiscoverScreen() {
     if (isSearchActive) {
       refetchSearch();
     }
+    refetchTrending();
+    refetchMyHabits();
     refetchSent();
     refetchReceived();
     refetchFriends();
@@ -149,6 +203,60 @@ export default function DiscoverScreen() {
         Alert.alert('Error', message);
       },
     });
+  };
+
+  // Trending Community Habit Logic
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    trendingHabits.forEach((h) => {
+      if (h.category) set.add(h.category);
+    });
+    return ['ALL', ...Array.from(set)];
+  }, [trendingHabits]);
+
+  const filteredTrending = useMemo(() => {
+    if (selectedCategory === 'ALL') return trendingHabits;
+    return trendingHabits.filter(
+      (h) => h.category?.toLowerCase() === selectedCategory.toLowerCase()
+    );
+  }, [trendingHabits, selectedCategory]);
+
+  const myHabitNames = useMemo(() => {
+    return new Set(myHabits.filter((h) => !h.archived).map((h) => h.name.toLowerCase().trim()));
+  }, [myHabits]);
+
+  const isHabitJoined = (habit: TrendingHabitRespond) => {
+    const target = habit.name.toLowerCase().trim();
+    if (myHabitNames.has(target)) return true;
+    for (const name of myHabitNames) {
+      if (target.includes(name) || name.includes(target)) return true;
+    }
+    return false;
+  };
+
+  const handleJoinTrendingHabit = async (habit: TrendingHabitRespond) => {
+    try {
+      setJoiningHabitId(habit.id);
+      await createHabitMutation.mutateAsync({
+        name: habit.name,
+        frequencyType: habit.defaultFrequency || 'DAILY',
+        habitType: habit.habitType,
+        config: habit.config,
+        isPublic: true,
+      });
+      Alert.alert(
+        'Habit Joined! 🔥',
+        `"${habit.name}" has been added to your habits. Let's build your streak!`,
+        [
+          { text: 'View Habits', onPress: () => router.push('/(tabs)') },
+          { text: 'Awesome!', style: 'cancel' },
+        ]
+      );
+    } catch (err: any) {
+      Alert.alert('Error', err?.response?.data?.message || err?.message || 'Failed to join habit');
+    } finally {
+      setJoiningHabitId(null);
+    }
   };
 
   const pendingReceivedCount = receivedRequests.length;
@@ -263,31 +371,151 @@ export default function DiscoverScreen() {
                 </Text>
               </View>
             ) : searchQuery.trim().length === 0 ? (
-              // Empty search initial view
+              // Empty search initial view: Friend Search helper + Trending Community Habits
               <View style={styles.emptySearchContainer}>
-                <View style={styles.mascotBubble}>
-                  <Ionicons name="people" size={38} color="#27AE60" />
+                {/* Compact Friend Search Helper Card */}
+                <View style={[styles.friendSearchCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <View style={styles.friendSearchIconWrap}>
+                    <Ionicons name="people" size={20} color="#27AE60" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.friendSearchTitle, { color: colors.text }]}>Find Friends by Username</Text>
+                    <Text style={[styles.friendSearchSub, { color: colors.textSecondary }]}>
+                      Type any name or @username above to find friends, view mutuals, and track streaks together!
+                    </Text>
+                  </View>
                 </View>
-                <Text style={[styles.emptyTitle, { color: colors.text }]}>Find your streak crew</Text>
-                <Text style={styles.emptySubtitle}>
-                  Search for your friends by username to cheer each other on and maintain daily streaks together!
-                </Text>
 
-                {/* Coming Soon: Popular Habits Preview Card */}
-                <View style={[styles.teaserCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                  <View style={styles.teaserHeader}>
-                    <View style={[styles.teaserIconWrapper, { backgroundColor: isDark ? '#4A332C' : '#FFF2EE' }]}>
+                {/* Trending Community Habits Section */}
+                <View style={styles.trendingHeaderSection}>
+                  <View style={styles.trendingTitleRow}>
+                    <View style={[styles.flameIconBadge, { backgroundColor: isDark ? '#4A2A22' : '#FFF2EE' }]}>
                       <Ionicons name="flame" size={20} color="#E17055" />
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.teaserTitle, { color: colors.text }]}>Trending Habits</Text>
-                      <Text style={styles.teaserBadge}>COMING SOON</Text>
+                    <Text style={[styles.trendingSectionTitle, { color: colors.text }]}>
+                      Trending Habits
+                    </Text>
+                    <View style={styles.trendingLiveBadge}>
+                      <View style={styles.pulseDot} />
+                      <Text style={styles.trendingLiveText}>COMMUNITY</Text>
                     </View>
                   </View>
-                  <Text style={styles.teaserDesc}>
-                    Discover popular habits like 30-day reading challenges, daily workouts, and meditation streaks.
-                  </Text>
+
+                  {/* Category Filter Chips with sleek vector icons */}
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.categoryScroll}
+                  >
+                    {categories.map((cat) => {
+                      const isActive = selectedCategory === cat;
+                      const meta = getCategoryMeta(cat);
+
+                      return (
+                        <Pressable
+                          key={cat}
+                          style={[
+                            styles.catChip,
+                            isActive
+                              ? [styles.catChipActive, { backgroundColor: '#6C5CE7', borderColor: '#6C5CE7' }]
+                              : [
+                                  styles.catChipInactive,
+                                  {
+                                    backgroundColor: isDark ? colors.card : '#FFFFFF',
+                                    borderColor: isDark ? '#2E2E42' : '#ECE8F8',
+                                  },
+                                ],
+                          ]}
+                          onPress={() => setSelectedCategory(cat)}
+                        >
+                          <View
+                            style={[
+                              styles.catIconWrap,
+                              {
+                                backgroundColor: isActive
+                                  ? 'rgba(255, 255, 255, 0.22)'
+                                  : isDark
+                                  ? '#252538'
+                                  : `${meta.color}15`,
+                              },
+                            ]}
+                          >
+                            <Ionicons
+                              name={meta.icon}
+                              size={13}
+                              color={isActive ? '#FFFFFF' : meta.color}
+                            />
+                          </View>
+                          <Text
+                            style={[
+                              styles.catChipText,
+                              {
+                                color: isActive ? '#FFFFFF' : isDark ? '#D5D5E8' : '#333346',
+                                fontWeight: isActive ? '700' : '600',
+                              },
+                            ]}
+                          >
+                            {meta.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
                 </View>
+
+                {/* Trending Habit Cards List */}
+                {isTrendingLoading && trendingHabits.length === 0 ? (
+                  <View style={styles.trendingLoadingWrap}>
+                    <ActivityIndicator size="small" color="#6C5CE7" />
+                    <Text style={[styles.trendingLoadingText, { color: colors.textSecondary }]}>
+                      Loading trending habits...
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.trendingListContainer}>
+                    {filteredTrending.map((habit, index) => {
+                      const isJoined = isHabitJoined(habit);
+                      const isJoining = joiningHabitId === habit.id;
+                      return (
+                        <TrendingHabitCard
+                          key={habit.id}
+                          habit={habit}
+                          rank={index + 1}
+                          index={index}
+                          isJoined={isJoined}
+                          isJoining={isJoining}
+                          onJoin={handleJoinTrendingHabit}
+                          onCustomize={() => {
+                            router.push('/habit/create');
+                          }}
+                        />
+                      );
+                    })}
+                  </View>
+                )}
+
+                {/* Optional Habit Catalog Modal Link */}
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.catalogTeaserCard,
+                    { backgroundColor: colors.card, borderColor: colors.border },
+                    pressed && { opacity: 0.85 },
+                  ]}
+                  onPress={() => setDiscoveryModalVisible(true)}
+                >
+                  <View style={[styles.catalogIconWrap, { backgroundColor: isDark ? '#2D2845' : '#F0EDFF' }]}>
+                    <Ionicons name="sparkles" size={18} color="#6C5CE7" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.catalogTeaserTitle, { color: colors.text }]}>
+                      Browse Blueprint Library
+                    </Text>
+                    <Text style={[styles.catalogTeaserSub, { color: colors.textSecondary }]}>
+                      Explore 38+ ready-to-use habit blueprints & challenges
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#6C5CE7" />
+                </Pressable>
               </View>
             ) : searchUsers.length === 0 ? (
               // No matching search results
@@ -421,6 +649,16 @@ export default function DiscoverScreen() {
           )}
         </ScrollView>
       )}
+
+      {/* Habit Discovery Modal */}
+      <HabitDiscoveryModal
+        visible={discoveryModalVisible}
+        onClose={() => setDiscoveryModalVisible(false)}
+        onSelectPresetToCustomize={() => {
+          setDiscoveryModalVisible(false);
+          router.push('/habit/create');
+        }}
+      />
     </View>
   );
 }
@@ -563,88 +801,170 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
   },
 
-  // Empty Search / Mascot
+  // Empty Search / Mascot & Trending Community Habits
   emptySearchContainer: {
-    alignItems: 'center',
-    paddingVertical: 30,
+    paddingVertical: 12,
   },
-  mascotBubble: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#FFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#27AE60',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 14,
-    elevation: 4,
-    borderWidth: 3,
-    borderColor: '#D4F5DC',
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#2D2D3A',
-    marginBottom: 8,
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: '#8B8BA0',
-    textAlign: 'center',
-    lineHeight: 22,
-    fontWeight: '500',
-    paddingHorizontal: 16,
-  },
-
-  // Coming soon card
-  teaserCard: {
-    width: '100%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 16,
-    marginTop: 28,
-    borderWidth: 1,
-    borderColor: '#F0EDFF',
-    shadowColor: '#6C5CE7',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  teaserHeader: {
+  friendSearchCard: {
     flexDirection: 'row',
     alignItems: 'center',
+    padding: 14,
+    borderRadius: 18,
+    borderWidth: 1,
     gap: 12,
-    marginBottom: 8,
+    marginBottom: 20,
+    shadowColor: '#27AE60',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 1,
   },
-  teaserIconWrapper: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FFF2EE',
+  friendSearchIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#E8F8F0',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  teaserTitle: {
-    fontSize: 15,
+  friendSearchTitle: {
+    fontSize: 14,
     fontWeight: '700',
-    color: '#2D2D3A',
+    marginBottom: 2,
   },
-  teaserBadge: {
+  friendSearchSub: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '500',
+  },
+
+  // Trending Section
+  trendingHeaderSection: {
+    marginBottom: 14,
+  },
+  trendingTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 12,
+  },
+  flameIconBadge: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trendingSectionTitle: {
+    flex: 1,
+    fontSize: 20,
+    fontWeight: '800',
+    letterSpacing: -0.4,
+  },
+  trendingLiveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFEAA7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    gap: 5,
+  },
+  pulseDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#D63031',
+  },
+  trendingLiveText: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#E17055',
+    color: '#D63031',
     letterSpacing: 0.5,
-    marginTop: 2,
   },
-  teaserDesc: {
+
+  // Category filter chips
+  categoryScroll: {
+    gap: 8,
+    paddingVertical: 6,
+    paddingRight: 10,
+  },
+  catChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: 6,
+    paddingRight: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    gap: 7,
+  },
+  catChipActive: {
+    shadowColor: '#6C5CE7',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.22,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  catChipInactive: {
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  catIconWrap: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  catChipText: {
     fontSize: 13,
-    color: '#8B8BA0',
-    lineHeight: 19,
+  },
+
+  // Loading & List
+  trendingLoadingWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 36,
+    gap: 8,
+  },
+  trendingLoadingText: {
+    fontSize: 13,
     fontWeight: '500',
+  },
+  trendingListContainer: {
+    marginTop: 8,
+  },
+
+  // Catalog Teaser Footer
+  catalogTeaserCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginTop: 8,
+    marginBottom: 20,
+    gap: 12,
+  },
+  catalogIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  catalogTeaserTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  catalogTeaserSub: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 2,
   },
 
   // No results
@@ -667,6 +987,18 @@ const styles = StyleSheet.create({
   emptyRequestsContainer: {
     alignItems: 'center',
     paddingVertical: 50,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 22,
+    fontWeight: '500',
+    paddingHorizontal: 16,
   },
   requestsBubble: {
     width: 76,
